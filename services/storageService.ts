@@ -73,6 +73,17 @@ export const storageService = {
     localStorage.setItem(STORAGE_KEYS.KEY_POINTS, JSON.stringify(filtered));
   },
 
+  getCredentials: (): Record<string, string> => {
+    const data = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+    return data ? JSON.parse(data).credentials || {} : {};
+  },
+
+  saveCredential: (provider: string, key: string) => {
+    const settings = JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS) || '{"credentials": {}}');
+    settings.credentials = { ...settings.credentials, [provider]: key };
+    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+  },
+
   getProgress: (): UserProgress => {
     const sessions = storageService.getSessions();
     const dist: Record<Language, number> = {

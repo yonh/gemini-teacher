@@ -3,24 +3,24 @@ import { VoiceProvider } from '../types';
 import { ILiveVoiceService } from './liveVoiceService';
 import { GeminiLiveService } from './geminiLiveService';
 import { ZhipuRealtimeService } from './zhipuRealtimeService';
+import { storageService } from './storageService';
 
 export class LiveServiceFactory {
-  static create(provider: VoiceProvider, apiKey?: string): ILiveVoiceService {
-    const key = apiKey || process.env.API_KEY || '';
+  static create(provider: VoiceProvider): ILiveVoiceService {
+    const credentials = storageService.getCredentials();
     
     switch (provider) {
       case VoiceProvider.GEMINI:
-        return new GeminiLiveService(key);
+        // Gemini always uses the environment key per strict requirements
+        return new GeminiLiveService(process.env.API_KEY || '');
       case VoiceProvider.ZHIPU_GLM:
-        return new ZhipuRealtimeService(key);
+        return new ZhipuRealtimeService(credentials[VoiceProvider.ZHIPU_GLM] || '');
       case VoiceProvider.OPENAI:
-        console.warn("OpenAI Realtime 尚未完全实现，暂时回退到 Gemini");
-        return new GeminiLiveService(key);
+        return new GeminiLiveService(process.env.API_KEY || ''); // Placeholder
       case VoiceProvider.OPENROUTER:
-        console.warn("OpenRouter 尚未完全实现，暂时回退到 Gemini");
-        return new GeminiLiveService(key);
+        return new GeminiLiveService(process.env.API_KEY || ''); // Placeholder
       default:
-        return new GeminiLiveService(key);
+        return new GeminiLiveService(process.env.API_KEY || '');
     }
   }
 }

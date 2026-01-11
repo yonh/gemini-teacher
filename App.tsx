@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { storageService } from './services/storageService';
 import { Role, Language, RoleType, KeyPoint, VoiceProvider } from './types';
-import { Layout, MessageCircle, BarChart2, Bookmark, Settings, UserCircle, Plus, Edit2, Save, X, Trash2, Calendar, Bot, Wand2, Cpu, Zap, Sparkles, Globe, ShieldCheck, Activity } from 'lucide-react';
+import { Layout, MessageCircle, BarChart2, Bookmark, Settings, UserCircle, Plus, Edit2, Save, X, Trash2, Calendar, Bot, Wand2, Cpu, Zap, Sparkles, Globe, ShieldCheck, Activity, Key } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import LiveChat from './components/LiveChat';
 import { RoleArchitect } from './components/RoleArchitect';
@@ -27,6 +27,7 @@ const App: React.FC = () => {
   const [roles, setRoles] = useState<Role[]>([]);
   const [keyPoints, setKeyPoints] = useState<KeyPoint[]>([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [credentials, setCredentials] = useState<Record<string, string>>({});
   
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [isArchitectOpen, setIsArchitectOpen] = useState(false);
@@ -35,6 +36,7 @@ const App: React.FC = () => {
   useEffect(() => {
     setRoles(storageService.getRoles());
     setKeyPoints(storageService.getKeyPoints());
+    setCredentials(storageService.getCredentials());
   }, [currentView, isChatOpen, isArchitectOpen]);
 
   const handleStartPractice = (role: Role) => {
@@ -86,6 +88,11 @@ const App: React.FC = () => {
   const handleDeleteKeyPoint = (id: string) => {
     storageService.deleteKeyPoint(id);
     setKeyPoints(storageService.getKeyPoints());
+  };
+
+  const handleSaveCredential = (provider: string, key: string) => {
+    storageService.saveCredential(provider, key);
+    setCredentials(storageService.getCredentials());
   };
 
   const getProviderIcon = (provider: VoiceProvider) => {
@@ -206,36 +213,42 @@ const App: React.FC = () => {
               <p className="text-gray-500">管理你的供应商凭据和数据资产</p>
             </header>
 
-            {/* API Providers Status */}
+            {/* Provider API Keys */}
             <section className="bg-white rounded-3xl border border-gray-100 p-8 shadow-sm space-y-6">
               <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
-                <ShieldCheck className="text-violet-600" size={24} />
-                <h3 className="font-bold text-lg text-gray-900">供应商状态</h3>
+                <Key className="text-violet-600" size={24} />
+                <h3 className="font-bold text-lg text-gray-900">供应商凭证</h3>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  { name: VoiceProvider.GEMINI, icon: Sparkles, color: 'blue', status: 'Online' },
-                  { name: VoiceProvider.ZHIPU_GLM, icon: Zap, color: 'amber', status: 'Online' },
-                  { name: VoiceProvider.OPENAI, icon: Globe, color: 'emerald', status: 'Setup Needed' },
-                  { name: VoiceProvider.OPENROUTER, icon: Cpu, color: 'slate', status: 'Setup Needed' }
-                ].map((p, i) => (
-                  <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg bg-${p.color}-100 text-${p.color}-600`}>
-                        <p.icon size={18} />
+              <div className="space-y-6">
+                <div className="space-y-4">
+                   <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Sparkles size={18} className="text-blue-500" />
+                        <span className="font-bold text-gray-700">Gemini API Key</span>
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-gray-900">{p.name}</p>
-                        <p className="text-[10px] text-gray-400 font-black uppercase">Endpoint: Realtime-V1</p>
+                      <span className="text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded font-black uppercase">来自环境变量</span>
+                   </div>
+                   <input disabled type="password" value="••••••••••••••••" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-400 cursor-not-allowed" />
+                   <p className="text-[10px] text-gray-400 italic">按照安全策略，Gemini API Key 始终从后端环境变量加载。</p>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t border-gray-50">
+                   <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Zap size={18} className="text-amber-500" />
+                        <span className="font-bold text-gray-700">智谱 AI API Key (GLM)</span>
                       </div>
-                    </div>
-                    <div className={`px-2 py-1 rounded-md text-[9px] font-black uppercase ${p.status === 'Online' ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-200 text-gray-500'}`}>
-                      {p.status}
-                    </div>
-                  </div>
-                ))}
+                      <span className="text-[10px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded font-black uppercase">自定义设置</span>
+                   </div>
+                   <input 
+                    type="password" 
+                    placeholder="格式: ID.SECRET" 
+                    value={credentials[VoiceProvider.ZHIPU_GLM] || ''} 
+                    onChange={(e) => handleSaveCredential(VoiceProvider.ZHIPU_GLM, e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:outline-none font-mono text-sm" 
+                   />
+                </div>
               </div>
-              <p className="text-xs text-gray-400 italic">注：API Key 当前统一由环境变量 process.env.API_KEY 提供。</p>
             </section>
 
             <section className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
