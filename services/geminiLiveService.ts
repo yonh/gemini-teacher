@@ -12,8 +12,9 @@ export class GeminiLiveService implements ILiveVoiceService {
   private stream: MediaStream | null = null;
   private modelName: string;
 
-  constructor(apiKey: string, modelName: string = 'gemini-2.5-flash-native-audio-preview-12-2025') {
-    this.ai = new GoogleGenAI({ apiKey });
+  constructor(_apiKey?: string, modelName: string = 'gemini-2.5-flash-native-audio-preview-12-2025') {
+    // API key must be obtained exclusively from the environment variable process.env.API_KEY.
+    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     this.modelName = modelName;
   }
 

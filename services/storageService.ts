@@ -1,5 +1,5 @@
 
-import { Session, Role, VocabularyWord, UserProgress, Language, KeyPoint, UserSettings, VoiceProvider } from '../types';
+import { Session, Role, VocabularyWord, UserProgress, Language, KeyPoint, UserSettings, VoiceProvider, Course } from '../types';
 import { STORAGE_KEYS, DEFAULT_ROLES } from '../constants';
 
 export const storageService = {
@@ -73,13 +73,51 @@ export const storageService = {
     localStorage.setItem(STORAGE_KEYS.KEY_POINTS, JSON.stringify(filtered));
   },
 
+  getCourses: (): Course[] => {
+    const data = localStorage.getItem(STORAGE_KEYS.COURSES);
+    return data ? JSON.parse(data) : [];
+  },
+
+  saveCourse: (course: Course) => {
+    const courses = storageService.getCourses();
+    const existingIndex = courses.findIndex(c => c.id === course.id);
+    if (existingIndex > -1) {
+      courses[existingIndex] = course;
+    } else {
+      courses.push(course);
+    }
+    localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(courses));
+  },
+
+  deleteCourse: (id: string) => {
+    const courses = storageService.getCourses();
+    const filtered = courses.filter(c => c.id !== id);
+    localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(filtered));
+  },
+
+  toggleChapterCompletion: (courseId: string, chapterId: string) => {
+    const courses = storageService.getCourses();
+    const course = courses.find(c => c.id === courseId);
+    if (!course) return;
+
+    if (!course.completedChapterIds) course.completedChapterIds = [];
+    
+    const index = course.completedChapterIds.indexOf(chapterId);
+    if (index > -1) {
+      course.completedChapterIds.splice(index, 1);
+    } else {
+      course.completedChapterIds.push(chapterId);
+    }
+    storageService.saveCourse(course);
+  },
+
   getSettings: (): UserSettings => {
     const data = localStorage.getItem(STORAGE_KEYS.SETTINGS);
     const defaultSettings: UserSettings = {
       credentials: {},
       preferredTextProvider: VoiceProvider.GEMINI,
       preferredTextModel: "gemini-3-flash-preview",
-      preferredRealtimeProvider: VoiceProvider.GEMINI, // 默认实时引擎为 Gemini
+      preferredRealtimeProvider: VoiceProvider.GEMINI,
       preferredRealtimeModel: "gemini-2.5-flash-native-audio-preview-12-2025"
     };
     return data ? JSON.parse(data) : defaultSettings;
@@ -129,7 +167,8 @@ export const storageService = {
       roles: storageService.getRoles(),
       vocab: storageService.getVocab(),
       keyPoints: storageService.getKeyPoints(),
-      settings: storageService.getSettings()
+      settings: storageService.getSettings(),
+      courses: storageService.getCourses()
     };
     const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);

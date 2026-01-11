@@ -1,11 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { storageService } from './services/storageService';
-import { Role, Language, RoleType, KeyPoint, VoiceProvider, UserSettings } from './types';
-import { Layout, MessageCircle, BarChart2, Bookmark, Settings, UserCircle, Plus, Edit2, Save, X, Trash2, Calendar, Bot, Wand2, Cpu, Zap, Sparkles, Globe, ShieldCheck, Activity, Key, Server, Mic } from 'lucide-react';
+import { Role, Language, RoleType, KeyPoint, VoiceProvider, UserSettings, Course, Chapter } from './types';
+import { Layout, MessageCircle, BarChart2, Bookmark, Settings, UserCircle, Plus, Edit2, Save, X, Trash2, Calendar, Bot, Wand2, Cpu, Zap, Sparkles, Globe, ShieldCheck, Activity, Key, Server, Mic, GraduationCap } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import LiveChat from './components/LiveChat';
 import { RoleArchitect } from './components/RoleArchitect';
+import { CourseLibrary } from './components/CourseLibrary';
+import { ChapterPlayer } from './components/ChapterPlayer';
 
 const SidebarItem = ({ icon: Icon, label, active, onClick, variant = 'default' }: { icon: any, label: string, active: boolean, onClick: () => void, variant?: 'default' | 'special' }) => (
   <button 
@@ -22,16 +24,21 @@ const SidebarItem = ({ icon: Icon, label, active, onClick, variant = 'default' }
 );
 
 const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<'dashboard' | 'chat' | 'vocab' | 'roles' | 'settings'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'chat' | 'vocab' | 'roles' | 'settings' | 'curriculum'>('dashboard');
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
   const [keyPoints, setKeyPoints] = useState<KeyPoint[]>([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatCourseContext, setChatCourseContext] = useState<{ course: Course, chapter: Chapter } | undefined>(undefined);
   const [settings, setSettings] = useState<UserSettings>(storageService.getSettings());
   
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [isArchitectOpen, setIsArchitectOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Partial<Role> | null>(null);
+
+  // Curriculum State
+  const [activeCourse, setActiveCourse] = useState<Course | null>(null);
+  const [activeChapter, setActiveChapter] = useState<Chapter | null>(null);
 
   useEffect(() => {
     setRoles(storageService.getRoles());
@@ -39,9 +46,15 @@ const App: React.FC = () => {
     setSettings(storageService.getSettings());
   }, [currentView, isChatOpen, isArchitectOpen]);
 
-  const handleStartPractice = (role: Role) => {
+  const handleStartPractice = (role: Role, courseContext?: { course: Course, chapter: Chapter }) => {
     setSelectedRole(role);
+    setChatCourseContext(courseContext);
     setIsChatOpen(true);
+  };
+
+  const handleStartChapter = (course: Course, chapter: Chapter) => {
+    setActiveCourse(course);
+    setActiveChapter(chapter);
   };
 
   const handleEditRole = (role: Role) => {
@@ -128,6 +141,7 @@ const App: React.FC = () => {
            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-4">主要功能</p>
            <nav className="space-y-1.5">
             <SidebarItem icon={BarChart2} label="学习概览" active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} />
+            <SidebarItem icon={GraduationCap} label="AI 课程" active={currentView === 'curriculum'} onClick={() => setCurrentView('curriculum')} />
             <SidebarItem icon={MessageCircle} label="语音练习" active={currentView === 'chat'} onClick={() => setCurrentView('chat')} />
             <SidebarItem icon={Bookmark} label="重点回顾" active={currentView === 'vocab'} onClick={() => setCurrentView('vocab')} />
           </nav>
@@ -151,6 +165,7 @@ const App: React.FC = () => {
 
       <main className="flex-1 overflow-y-auto bg-gray-50/50">
         {currentView === 'dashboard' && <Dashboard />}
+        {currentView === 'curriculum' && <CourseLibrary onStartChapter={handleStartChapter} />}
         {currentView === 'chat' && (
           <div className="p-10 space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-700">
             <header className="flex justify-between items-end">
@@ -326,23 +341,6 @@ const App: React.FC = () => {
                 <div className="space-y-4">
                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Sparkles size={18} className="text-blue-500" />
-                        <span className="font-bold text-gray-700">Gemini Key</span>
-                      </div>
-                      <span className="text-[8px] bg-blue-50 text-blue-500 px-2 py-0.5 rounded-full font-black uppercase tracking-tighter">System Priority</span>
-                   </div>
-                   <input 
-                    type="password" 
-                    placeholder="不填则使用环境变量" 
-                    value={settings.credentials[VoiceProvider.GEMINI] || ''} 
-                    onChange={(e) => handleSaveCredential(VoiceProvider.GEMINI, e.target.value)}
-                    className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-violet-500 font-mono text-sm" 
-                   />
-                </div>
-
-                <div className="space-y-4">
-                   <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
                         <Server size={18} className="text-purple-500" />
                         <span className="font-bold text-gray-700">OpenRouter Key</span>
                       </div>
@@ -394,8 +392,16 @@ const App: React.FC = () => {
       </main>
 
       {/* Overlays */}
-      {isChatOpen && selectedRole && <LiveChat role={selectedRole} onClose={() => setIsChatOpen(false)} />}
+      {isChatOpen && selectedRole && <LiveChat role={selectedRole} courseContext={chatCourseContext} onClose={() => { setIsChatOpen(false); setChatCourseContext(undefined); }} />}
       {isArchitectOpen && <RoleArchitect onClose={() => setIsArchitectOpen(false)} onComplete={(data) => handleSaveRole(data)} />}
+      {activeCourse && activeChapter && (
+        <ChapterPlayer 
+          course={activeCourse} 
+          chapter={activeChapter} 
+          onClose={() => { setActiveCourse(null); setActiveChapter(null); }} 
+          onStartPractice={(role, ctx) => handleStartPractice(role, ctx)}
+        />
+      )}
 
       {/* Role Editor Modal */}
       {isRoleModalOpen && editingRole && (

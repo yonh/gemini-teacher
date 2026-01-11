@@ -72,5 +72,6 @@ export const STORAGE_KEYS = {
   ROLES: 'linguist_roles',
   VOCAB: 'linguist_vocab',
   KEY_POINTS: 'linguist_key_points',
-  SETTINGS: 'linguist_settings'
+  SETTINGS: 'linguist_settings',
+  COURSES: 'linguist_courses'
 };

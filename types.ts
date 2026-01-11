@@ -19,6 +19,28 @@ export enum VoiceProvider {
   ZHIPU_GLM = '智谱 GLM-Realtime'
 }
 
+export enum DifficultyLevel {
+  BEGINNER = 'Beginner',
+  INTERMEDIATE = 'Intermediate', 
+  ADVANCED = 'Advanced',
+  NATIVE = 'Native'
+}
+
+export enum CourseCategory {
+  BUSINESS = 'Business',
+  DAILY_LIFE = 'Daily Life',
+  ACADEMIC = 'Academic',
+  TRAVEL = 'Travel',
+  EXAM_PREP = 'Exam Preparation',
+  TECHNICAL = 'Technical'
+}
+
+export enum CourseSource {
+  WEB_SEARCH = 'Web Search',
+  AI_GENERATED = 'AI Generated',
+  USER_CREATED = 'User Created'
+}
+
 export interface Role {
   id: string;
   name: string;
@@ -74,6 +96,34 @@ export interface Session {
   messages: ChatMessage[];
   corrections: Correction[];
   summary?: string;
+  courseContext?: {
+    courseId: string;
+    chapterId: string;
+  };
+}
+
+export interface Chapter {
+  id: string;
+  title: string;
+  description: string;
+  content: string; // Markdown or plain text
+  order: number;
+  associatedRoleId?: string;
+}
+
+export interface Course {
+  id: string;
+  title: string;
+  description: string;
+  difficulty: DifficultyLevel;
+  language: Language;
+  category: CourseCategory;
+  source: CourseSource;
+  chapters: Chapter[];
+  learningObjectives: string[];
+  createdAt: string;
+  references?: { title: string, uri: string }[];
+  completedChapterIds?: string[];
 }
 
 export interface UserProgress {
@@ -87,6 +137,6 @@ export interface UserSettings {
   credentials: Record<string, string>;
   preferredTextProvider: VoiceProvider;
   preferredTextModel: string;
-  preferredRealtimeProvider: VoiceProvider; // 新增：首选实时引擎提供商
+  preferredRealtimeProvider: VoiceProvider;
   preferredRealtimeModel: string;
 }

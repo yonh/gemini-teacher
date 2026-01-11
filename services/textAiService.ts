@@ -16,8 +16,8 @@ export const textAiService = {
       return await or.generateText(prompt, model);
     }
 
-    // Default to Gemini
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
+    // Default to Gemini, using process.env.API_KEY directly.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: model,
       contents: prompt,
