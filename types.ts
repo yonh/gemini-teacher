@@ -30,6 +30,16 @@ export interface VocabularyWord {
   lastReviewed: string;
 }
 
+export interface KeyPoint {
+  id: string;
+  sessionId: string;
+  roleName: string;
+  content: string;
+  translation?: string;
+  timestamp: string;
+  note?: string;
+}
+
 export interface Correction {
   original: string;
   corrected: string;
@@ -43,6 +53,7 @@ export interface ChatMessage {
   text: string;
   translation?: string;
   timestamp: string;
+  isPinned?: boolean;
 }
 
 export interface Session {

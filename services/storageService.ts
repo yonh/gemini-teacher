@@ -1,5 +1,5 @@
 
-import { Session, Role, VocabularyWord, UserProgress, Language } from '../types';
+import { Session, Role, VocabularyWord, UserProgress, Language, KeyPoint } from '../types';
 import { STORAGE_KEYS, DEFAULT_ROLES } from '../constants';
 
 export const storageService = {
@@ -51,6 +51,28 @@ export const storageService = {
     localStorage.setItem(STORAGE_KEYS.VOCAB, JSON.stringify(vocab));
   },
 
+  getKeyPoints: (): KeyPoint[] => {
+    const data = localStorage.getItem(STORAGE_KEYS.KEY_POINTS);
+    return data ? JSON.parse(data) : [];
+  },
+
+  saveKeyPoint: (kp: KeyPoint) => {
+    const kps = storageService.getKeyPoints();
+    const existingIndex = kps.findIndex(k => k.id === kp.id);
+    if (existingIndex > -1) {
+      kps[existingIndex] = kp;
+    } else {
+      kps.push(kp);
+    }
+    localStorage.setItem(STORAGE_KEYS.KEY_POINTS, JSON.stringify(kps));
+  },
+
+  deleteKeyPoint: (id: string) => {
+    const kps = storageService.getKeyPoints();
+    const filtered = kps.filter(k => k.id !== id);
+    localStorage.setItem(STORAGE_KEYS.KEY_POINTS, JSON.stringify(filtered));
+  },
+
   getProgress: (): UserProgress => {
     const sessions = storageService.getSessions();
     const dist: Record<Language, number> = {
@@ -77,7 +99,8 @@ export const storageService = {
     const allData = {
       sessions: storageService.getSessions(),
       roles: storageService.getRoles(),
-      vocab: storageService.getVocab()
+      vocab: storageService.getVocab(),
+      keyPoints: storageService.getKeyPoints()
     };
     const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);

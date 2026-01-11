@@ -2,11 +2,12 @@
 import React, { useMemo } from 'react';
 import { storageService } from '../services/storageService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
-import { Clock, MessageSquare, Award, Book } from 'lucide-react';
+import { Clock, MessageSquare, Award, Book, Bookmark } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const progress = useMemo(() => storageService.getProgress(), []);
   const sessions = useMemo(() => storageService.getSessions(), []);
+  const keyPointsCount = useMemo(() => storageService.getKeyPoints().length, []);
   
   const languageData = useMemo(() => {
     return Object.entries(progress.languageDistribution).map(([name, value]) => ({ name, value }));
@@ -21,25 +22,26 @@ const Dashboard: React.FC = () => {
   return (
     <div className="p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <header>
-        <h1 className="text-3xl font-bold text-gray-900">Learning Progress</h1>
-        <p className="text-gray-500">Summary of your linguistic journey</p>
+        <h1 className="text-3xl font-bold text-gray-900">学习概览</h1>
+        <p className="text-gray-500">记录你的语言成长点滴</p>
       </header>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {[
-          { label: 'Total Time', value: `${Math.round(progress.totalSeconds / 60)}m`, icon: Clock, color: 'blue' },
-          { label: 'Sessions', value: progress.totalSessions, icon: MessageSquare, color: 'violet' },
-          { label: 'Grammar Score', value: `${progress.averageGrammarScore}%`, icon: Award, color: 'amber' },
-          { label: 'New Words', value: storageService.getVocab().length, icon: Book, color: 'emerald' },
+          { label: '练习总时长', value: `${Math.round(progress.totalSeconds / 60)}m`, icon: Clock, color: 'blue' },
+          { label: '对话场次', value: progress.totalSessions, icon: MessageSquare, color: 'violet' },
+          { label: '记重点', value: keyPointsCount, icon: Bookmark, color: 'amber' },
+          { label: '掌握词汇', value: storageService.getVocab().length, icon: Book, color: 'emerald' },
+          { label: '语法得分', value: `${progress.averageGrammarScore}%`, icon: Award, color: 'indigo' },
         ].map((stat, i) => (
-          <div key={i} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+          <div key={i} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500 mb-1">{stat.label}</p>
-              <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+              <p className="text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-wider">{stat.label}</p>
+              <p className="text-xl font-black text-gray-900">{stat.value}</p>
             </div>
-            <div className={`p-3 rounded-xl bg-${stat.color}-50 text-${stat.color}-500`}>
-              <stat.icon size={24} />
+            <div className={`p-2.5 rounded-xl bg-${stat.color}-50 text-${stat.color}-500`}>
+              <stat.icon size={20} />
             </div>
           </div>
         ))}
@@ -48,7 +50,7 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Language Split */}
         <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <h3 className="font-semibold text-lg mb-6">Language Split</h3>
+          <h3 className="font-semibold text-lg mb-6">语种分布</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -81,11 +83,11 @@ const Dashboard: React.FC = () => {
 
         {/* Recent Activity */}
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <h3 className="font-semibold text-lg mb-6">Recent Sessions</h3>
+          <h3 className="font-semibold text-lg mb-6">最近练习</h3>
           <div className="space-y-4">
             {recentActivity.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-gray-400 italic">
-                No sessions yet. Start your first conversation!
+              <div className="h-full flex items-center justify-center text-gray-400 italic py-12">
+                还没有练习记录。开始你的第一次对话吧！
               </div>
             ) : (
               recentActivity.map((s) => (
@@ -95,13 +97,13 @@ const Dashboard: React.FC = () => {
                       <span className="text-lg">🗣️</span>
                     </div>
                     <div>
-                      <p className="font-medium">{s.language} Practice</p>
+                      <p className="font-medium">{s.language} 练习</p>
                       <p className="text-xs text-gray-500">{new Date(s.startTime).toLocaleDateString()}</p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold">{Math.round(s.duration / 60)} min</p>
-                    <p className="text-[10px] text-gray-400 uppercase">{s.corrections.length} corrections</p>
+                    <p className="text-[10px] text-gray-400 uppercase">{s.corrections.length} 处修改建议</p>
                   </div>
                 </div>
               ))
