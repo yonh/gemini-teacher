@@ -12,6 +12,13 @@ export enum RoleType {
   EXAMINER = 'Examiner'
 }
 
+export enum VoiceProvider {
+  GEMINI = 'Gemini Live',
+  OPENAI = 'OpenAI Realtime',
+  OPENROUTER = 'OpenRouter',
+  ZHIPU_GLM = '智谱 GLM-Realtime'
+}
+
 export interface Role {
   id: string;
   name: string;
@@ -19,6 +26,7 @@ export interface Role {
   language: Language;
   description: string;
   systemPrompt: string;
+  provider: VoiceProvider;
 }
 
 export interface VocabularyWord {
@@ -26,7 +34,7 @@ export interface VocabularyWord {
   word: string;
   translation: string;
   example: string;
-  mastery: number; // 0 to 100
+  mastery: number;
   lastReviewed: string;
 }
 
@@ -61,7 +69,7 @@ export interface Session {
   roleId: string;
   startTime: string;
   endTime?: string;
-  duration: number; // in seconds
+  duration: number;
   language: Language;
   messages: ChatMessage[];
   corrections: Correction[];

@@ -1,12 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { storageService } from './services/storageService';
-import { Role, Language, RoleType, KeyPoint } from './types';
-import { Layout, MessageCircle, BarChart2, Bookmark, Settings, UserCircle, Plus, Edit2, Save, X, Trash2, Calendar, Bot, Wand2 } from 'lucide-react';
+import { Role, Language, RoleType, KeyPoint, VoiceProvider } from './types';
+import { Layout, MessageCircle, BarChart2, Bookmark, Settings, UserCircle, Plus, Edit2, Save, X, Trash2, Calendar, Bot, Wand2, Cpu, Zap, Sparkles, Globe, ShieldCheck, Activity } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import LiveChat from './components/LiveChat';
 import { RoleArchitect } from './components/RoleArchitect';
-import { DEFAULT_ROLES } from './constants';
 
 const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label: string, active: boolean, onClick: () => void }) => (
   <button 
@@ -29,7 +28,6 @@ const App: React.FC = () => {
   const [keyPoints, setKeyPoints] = useState<KeyPoint[]>([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
   
-  // Role Editing State
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [isArchitectOpen, setIsArchitectOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Partial<Role> | null>(null);
@@ -55,6 +53,7 @@ const App: React.FC = () => {
       name: '',
       type: RoleType.COACH,
       language: Language.ENGLISH,
+      provider: VoiceProvider.GEMINI,
       description: '',
       systemPrompt: ''
     });
@@ -66,7 +65,8 @@ const App: React.FC = () => {
     if (finalRole && finalRole.name && finalRole.systemPrompt) {
       storageService.saveRole({
         ...finalRole,
-        id: finalRole.id || Date.now().toString()
+        id: finalRole.id || Date.now().toString(),
+        provider: finalRole.provider || VoiceProvider.GEMINI
       } as Role);
       setRoles(storageService.getRoles());
       setIsRoleModalOpen(false);
@@ -88,9 +88,17 @@ const App: React.FC = () => {
     setKeyPoints(storageService.getKeyPoints());
   };
 
+  const getProviderIcon = (provider: VoiceProvider) => {
+    switch (provider) {
+      case VoiceProvider.GEMINI: return <Sparkles size={16} className="text-blue-500" />;
+      case VoiceProvider.ZHIPU_GLM: return <Zap size={16} className="text-amber-500" />;
+      case VoiceProvider.OPENAI: return <Globe size={16} className="text-emerald-500" />;
+      default: return <Cpu size={16} />;
+    }
+  };
+
   return (
     <div className="flex h-screen bg-gray-50 font-sans">
-      {/* Sidebar */}
       <aside className="w-64 border-r border-gray-200 bg-white flex flex-col p-6 space-y-8 shrink-0">
         <div className="flex items-center gap-2 mb-2">
           <div className="w-10 h-10 bg-violet-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -98,90 +106,56 @@ const App: React.FC = () => {
           </div>
           <span className="text-xl font-bold text-gray-900 tracking-tight">Linguist<span className="text-violet-600">AI</span></span>
         </div>
-
         <nav className="flex-1 space-y-2">
-          <SidebarItem 
-            icon={BarChart2} 
-            label="学习概览" 
-            active={currentView === 'dashboard'} 
-            onClick={() => setCurrentView('dashboard')} 
-          />
-          <SidebarItem 
-            icon={MessageCircle} 
-            label="语音练习" 
-            active={currentView === 'chat'} 
-            onClick={() => setCurrentView('chat')} 
-          />
-          <SidebarItem 
-            icon={Bookmark} 
-            label="重点回顾" 
-            active={currentView === 'vocab'} 
-            onClick={() => setCurrentView('vocab')} 
-          />
+          <SidebarItem icon={BarChart2} label="学习概览" active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} />
+          <SidebarItem icon={MessageCircle} label="语音练习" active={currentView === 'chat'} onClick={() => setCurrentView('chat')} />
+          <SidebarItem icon={Bookmark} label="重点回顾" active={currentView === 'vocab'} onClick={() => setCurrentView('vocab')} />
         </nav>
-
         <div className="pt-6 border-t border-gray-100">
-           <SidebarItem 
-            icon={Settings} 
-            label="设置" 
-            active={currentView === 'settings'} 
-            onClick={() => setCurrentView('settings')} 
-          />
+           <SidebarItem icon={Settings} label="设置" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
         {currentView === 'dashboard' && <Dashboard />}
-
         {currentView === 'chat' && (
           <div className="p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <header className="flex justify-between items-end">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">选择你的导师</h1>
-                <p className="text-gray-500">挑选一个角色开始你的口语练习</p>
+                <p className="text-gray-500">不同供应商提供不同的语音和交互体验</p>
               </div>
-              <button 
-                onClick={handleCreateRole}
-                className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-xl hover:bg-violet-700 transition-colors font-medium shadow-md"
-              >
+              <button onClick={handleCreateRole} className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-xl hover:bg-violet-700 transition-colors font-medium shadow-md">
                 <Plus size={18} />
                 创建角色
               </button>
             </header>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {roles.map(role => (
-                <div key={role.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:border-violet-200 hover:shadow-md transition-all group relative">
-                  <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={() => handleEditRole(role)}
-                      className="p-2 bg-white rounded-full shadow-sm border border-gray-100 text-gray-400 hover:text-violet-600 hover:border-violet-200"
-                    >
+                <div key={role.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:border-violet-200 hover:shadow-md transition-all group relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-3 bg-gray-50 border-bl border-gray-100 rounded-bl-xl opacity-40 group-hover:opacity-100 transition-opacity">
+                    {getProviderIcon(role.provider)}
+                  </div>
+                  <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    <button onClick={() => handleEditRole(role)} className="p-2 bg-white rounded-full shadow-sm border border-gray-100 text-gray-400 hover:text-violet-600 hover:border-violet-200">
                       <Edit2 size={14} />
                     </button>
-                    <button 
-                      onClick={() => handleDeleteRole(role.id)}
-                      className="p-2 bg-white rounded-full shadow-sm border border-gray-100 text-gray-400 hover:text-red-600 hover:border-red-200"
-                    >
+                    <button onClick={() => handleDeleteRole(role.id)} className="p-2 bg-white rounded-full shadow-sm border border-gray-100 text-gray-400 hover:text-red-600 hover:border-red-200">
                       <Trash2 size={14} />
                     </button>
                   </div>
-
                   <div className="flex justify-between items-start mb-4">
-                    <div className="w-12 h-12 rounded-full bg-violet-100 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+                    <div className="w-12 h-12 rounded-full bg-violet-100 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform shadow-inner">
                       {role.language === Language.ENGLISH ? '🇬🇧' : role.language === Language.CHINESE ? '🇨🇳' : '🇯🇵'}
                     </div>
-                    <span className="px-3 py-1 bg-violet-50 text-violet-600 text-[10px] font-bold uppercase rounded-full tracking-wider">
-                      {role.type}
-                    </span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="px-3 py-1 bg-violet-50 text-violet-600 text-[10px] font-bold uppercase rounded-full tracking-wider">{role.type}</span>
+                      <span className="text-[9px] text-gray-400 font-black uppercase flex items-center gap-1">{role.provider}</span>
+                    </div>
                   </div>
                   <h3 className="font-bold text-xl mb-2">{role.name}</h3>
-                  <p className="text-gray-500 text-sm mb-6 line-clamp-2">{role.description}</p>
-                  <button 
-                    onClick={() => handleStartPractice(role)}
-                    className="w-full py-3 bg-gray-50 hover:bg-violet-600 hover:text-white text-gray-900 font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
-                  >
+                  <p className="text-gray-500 text-sm mb-6 line-clamp-2 h-10">{role.description}</p>
+                  <button onClick={() => handleStartPractice(role)} className="w-full py-3 bg-gray-50 hover:bg-violet-600 hover:text-white text-gray-900 font-semibold rounded-xl transition-all flex items-center justify-center gap-2">
                     <MessageCircle size={18} />
                     开始对话
                   </button>
@@ -190,50 +164,34 @@ const App: React.FC = () => {
             </div>
           </div>
         )}
-
         {currentView === 'vocab' && (
           <div className="p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* ... 同前 ... */}
             <header>
-              <h1 className="text-3xl font-bold text-gray-900">重点知识回顾</h1>
+              <h1 className="text-3xl font-bold text-gray-900">重点回顾</h1>
               <p className="text-gray-500">你在对话中标记的所有重点内容</p>
             </header>
-
             {keyPoints.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-24 text-gray-400 space-y-4">
                 <Bookmark size={48} className="opacity-20" />
-                <p className="italic">还没有记下任何重点。在对话中点击书签按钮来标记吧！</p>
+                <p className="italic">还没有记下任何重点。</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {keyPoints.map(kp => (
                   <div key={kp.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4 relative group">
-                    <button 
-                      onClick={() => handleDeleteKeyPoint(kp.id)}
-                      className="absolute top-4 right-4 p-2 text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                    >
+                    <button onClick={() => handleDeleteKeyPoint(kp.id)} className="absolute top-4 right-4 p-2 text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
                       <Trash2 size={16} />
                     </button>
-                    
                     <div className="flex items-center gap-2 text-xs font-bold text-violet-600 uppercase tracking-widest">
                       <Bot size={14} />
-                      {kp.roleName} 的建议
+                      {kp.roleName}
                     </div>
-
                     <div className="space-y-3">
                       <p className="text-gray-900 font-medium leading-relaxed">{kp.content}</p>
-                      {kp.translation && (
-                        <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-sm text-gray-500 italic">
-                          {kp.translation}
-                        </div>
-                      )}
+                      {kp.translation && <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-sm text-gray-500 italic">{kp.translation}</div>}
                     </div>
-
                     <div className="flex items-center gap-4 pt-4 border-t border-gray-50 text-[10px] text-gray-400 font-bold uppercase">
-                      <span className="flex items-center gap-1">
-                        <Calendar size={12} />
-                        {new Date(kp.timestamp).toLocaleDateString()}
-                      </span>
+                      <span className="flex items-center gap-1"><Calendar size={12} />{new Date(kp.timestamp).toLocaleDateString()}</span>
                     </div>
                   </div>
                 ))}
@@ -241,36 +199,78 @@ const App: React.FC = () => {
             )}
           </div>
         )}
-
         {currentView === 'settings' && (
-          <div className="p-8 space-y-6">
-            <h1 className="text-2xl font-bold">设置</h1>
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 space-y-4">
-              <h3 className="font-semibold text-gray-900">数据管理</h3>
-              <p className="text-sm text-gray-500">导出你的所有对话记录、重点和角色定义作为备份。</p>
-              <button 
-                onClick={() => storageService.exportAllData()}
-                className="px-6 py-2 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-700 shadow-lg shadow-violet-200 transition-all"
-              >
-                导出数据 (JSON)
-              </button>
-            </div>
+          <div className="p-8 space-y-10 max-w-4xl animate-in fade-in duration-500">
+            <header>
+              <h1 className="text-3xl font-bold text-gray-900">偏好设置</h1>
+              <p className="text-gray-500">管理你的供应商凭据和数据资产</p>
+            </header>
+
+            {/* API Providers Status */}
+            <section className="bg-white rounded-3xl border border-gray-100 p-8 shadow-sm space-y-6">
+              <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
+                <ShieldCheck className="text-violet-600" size={24} />
+                <h3 className="font-bold text-lg text-gray-900">供应商状态</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { name: VoiceProvider.GEMINI, icon: Sparkles, color: 'blue', status: 'Online' },
+                  { name: VoiceProvider.ZHIPU_GLM, icon: Zap, color: 'amber', status: 'Online' },
+                  { name: VoiceProvider.OPENAI, icon: Globe, color: 'emerald', status: 'Setup Needed' },
+                  { name: VoiceProvider.OPENROUTER, icon: Cpu, color: 'slate', status: 'Setup Needed' }
+                ].map((p, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg bg-${p.color}-100 text-${p.color}-600`}>
+                        <p.icon size={18} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">{p.name}</p>
+                        <p className="text-[10px] text-gray-400 font-black uppercase">Endpoint: Realtime-V1</p>
+                      </div>
+                    </div>
+                    <div className={`px-2 py-1 rounded-md text-[9px] font-black uppercase ${p.status === 'Online' ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-200 text-gray-500'}`}>
+                      {p.status}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 italic">注：API Key 当前统一由环境变量 process.env.API_KEY 提供。</p>
+            </section>
+
+            <section className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
+              <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
+                <Activity className="text-violet-600" size={24} />
+                <h3 className="font-bold text-lg text-gray-900">数据管理</h3>
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-gray-800">导出数据</p>
+                    <p className="text-sm text-gray-500">保存你的对话历史、生词本和角色到本地 JSON 文件。</p>
+                  </div>
+                  <button onClick={() => storageService.exportAllData()} className="px-6 py-2.5 bg-violet-600 text-white rounded-xl font-bold hover:bg-violet-700 shadow-lg shadow-violet-200 transition-all flex items-center gap-2">
+                    <Save size={18} /> 立即导出
+                  </button>
+                </div>
+                <div className="flex items-center justify-between pt-4 border-t border-gray-50">
+                  <div>
+                    <p className="font-bold text-red-600">清除所有数据</p>
+                    <p className="text-sm text-gray-500">这会永久删除你的所有进度，且不可恢复。</p>
+                  </div>
+                  <button onClick={() => { if(confirm('警告：此操作不可恢复。确定清除吗？')) { localStorage.clear(); location.reload(); } }} className="px-6 py-2.5 border border-red-200 text-red-600 rounded-xl font-bold hover:bg-red-50 transition-all">
+                    清空存储
+                  </button>
+                </div>
+              </div>
+            </section>
           </div>
         )}
       </main>
 
-      {/* Voice Chat Modal */}
-      {isChatOpen && selectedRole && (
-        <LiveChat role={selectedRole} onClose={() => setIsChatOpen(false)} />
-      )}
-
-      {/* Role Architect Modal */}
-      {isArchitectOpen && (
-        <RoleArchitect 
-          onClose={() => setIsArchitectOpen(false)} 
-          onComplete={(data) => handleSaveRole(data)}
-        />
-      )}
+      {/* Overlays */}
+      {isChatOpen && selectedRole && <LiveChat role={selectedRole} onClose={() => setIsChatOpen(false)} />}
+      {isArchitectOpen && <RoleArchitect onClose={() => setIsArchitectOpen(false)} onComplete={(data) => handleSaveRole(data)} />}
 
       {/* Role Editor Modal */}
       {isRoleModalOpen && editingRole && (
@@ -278,100 +278,68 @@ const App: React.FC = () => {
           <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
               <h2 className="text-xl font-bold flex items-center gap-2">
-                <UserCircle className="text-violet-600" />
+                <div className="p-2 bg-violet-100 rounded-xl"><UserCircle className="text-violet-600" /></div>
                 {editingRole.name ? '编辑导师角色' : '创建新导师'}
               </h2>
-              <button onClick={() => setIsRoleModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                <X size={24} />
-              </button>
+              <button onClick={() => setIsRoleModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={24} /></button>
             </div>
             
             {!editingRole.name && (
-              <div className="p-4 bg-violet-50 border-b border-violet-100 flex items-center justify-between px-8">
-                <div className="flex items-center gap-3">
-                  <Wand2 className="text-violet-600" size={20} />
-                  <span className="text-sm font-semibold text-violet-800">试试“AI语音引导创建”？</span>
-                </div>
-                <button 
-                  onClick={() => { setIsRoleModalOpen(false); setIsArchitectOpen(true); }}
-                  className="px-4 py-1.5 bg-violet-600 text-white text-xs font-bold rounded-full hover:bg-violet-700 transition-all"
-                >
-                  开启语音向导
-                </button>
+              <div className="p-4 bg-violet-600 flex items-center justify-between px-8 shadow-inner">
+                <div className="flex items-center gap-3"><Wand2 className="text-white" size={20} /><span className="text-sm font-black text-white uppercase tracking-wider">AI 语音辅助创建模式</span></div>
+                <button onClick={() => { setIsRoleModalOpen(false); setIsArchitectOpen(true); }} className="px-6 py-2 bg-white text-violet-600 text-xs font-black rounded-full hover:bg-gray-50 transition-all shadow-xl">开启向导</button>
               </div>
             )}
 
             <div className="p-8 space-y-6 overflow-y-auto max-h-[70vh]">
-              {/* ... 原表单内容 ... */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-bold text-gray-700">显示名称</label>
-                  <input 
-                    type="text" 
-                    value={editingRole.name}
-                    onChange={e => setEditingRole({...editingRole, name: e.target.value})}
-                    placeholder="例如：铁面面试官"
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:outline-none"
-                  />
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest">导师名称</label>
+                  <input type="text" value={editingRole.name} onChange={e => setEditingRole({...editingRole, name: e.target.value})} placeholder="例如：面试官 林" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:outline-none font-bold" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-bold text-gray-700">角色类型</label>
-                  <select 
-                    value={editingRole.type}
-                    onChange={e => setEditingRole({...editingRole, type: e.target.value as RoleType})}
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:outline-none"
-                  >
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest">角色类型</label>
+                  <select value={editingRole.type} onChange={e => setEditingRole({...editingRole, type: e.target.value as RoleType})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:outline-none font-bold appearance-none">
                     {Object.values(RoleType).map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest">目标语言</label>
+                  <select value={editingRole.language} onChange={e => setEditingRole({...editingRole, language: e.target.value as Language})} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:outline-none font-bold">
+                    {Object.values(Language).map(l => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <Cpu size={14} className="text-violet-600" /> 语音方案 (Provider)
+                  </label>
+                  <select value={editingRole.provider} onChange={e => setEditingRole({...editingRole, provider: e.target.value as VoiceProvider})} className="w-full px-4 py-3 bg-violet-50 border border-violet-100 text-violet-700 font-bold rounded-xl focus:ring-2 focus:ring-violet-500 focus:outline-none">
+                    {Object.values(VoiceProvider).map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">语言</label>
-                <select 
-                  value={editingRole.language}
-                  onChange={e => setEditingRole({...editingRole, language: e.target.value as Language})}
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:outline-none"
-                >
-                  {Object.values(Language).map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest">简介</label>
+                <textarea value={editingRole.description} onChange={e => setEditingRole({...editingRole, description: e.target.value})} rows={2} placeholder="给导师写一个简单的介绍..." className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:outline-none text-sm" />
               </div>
-
+              
               <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">简介</label>
-                <textarea 
-                  value={editingRole.description}
-                  onChange={e => setEditingRole({...editingRole, description: e.target.value})}
-                  rows={2}
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">系统指令 (Prompt)</label>
-                <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">这决定了 AI 的个性和行为逻辑</p>
-                <textarea 
-                  value={editingRole.systemPrompt}
-                  onChange={e => setEditingRole({...editingRole, systemPrompt: e.target.value})}
-                  rows={4}
-                  placeholder="你是一个严格的面试官..."
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:outline-none font-mono text-sm"
-                />
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center justify-between">
+                  <span>系统指令 (SYSTEM PROMPT)</span>
+                  <span className="text-[10px] lowercase text-gray-300 font-normal italic">决定对话逻辑的核心代码</span>
+                </label>
+                <textarea value={editingRole.systemPrompt} onChange={e => setEditingRole({...editingRole, systemPrompt: e.target.value})} rows={5} placeholder="你是一个严格的面试官，首先会问我的背景..." className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500 focus:outline-none font-mono text-xs leading-relaxed" />
               </div>
             </div>
+
             <div className="p-6 bg-gray-50/50 border-t border-gray-100 flex justify-end gap-3">
-              <button 
-                onClick={() => setIsRoleModalOpen(false)}
-                className="px-6 py-2 text-gray-500 font-bold hover:text-gray-700 transition-colors"
-              >
-                取消
-              </button>
-              <button 
-                onClick={() => handleSaveRole()}
-                className="px-8 py-2 bg-violet-600 text-white rounded-xl font-bold shadow-lg shadow-violet-200 hover:bg-violet-700 transition-colors flex items-center gap-2"
-              >
-                <Save size={18} />
-                保存角色
+              <button onClick={() => setIsRoleModalOpen(false)} className="px-6 py-2 text-gray-500 font-bold hover:text-gray-700 transition-colors">取消</button>
+              <button onClick={() => handleSaveRole()} className="px-10 py-3 bg-violet-600 text-white rounded-2xl font-black shadow-lg shadow-violet-200 hover:bg-violet-700 transition-all flex items-center gap-2">
+                <Save size={18} /> 保存配置
               </button>
             </div>
           </div>

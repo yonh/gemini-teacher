@@ -1,53 +1,8 @@
 
-import { GoogleGenAI, LiveServerMessage, Modality, Type, Blob } from '@google/genai';
+import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
+import { ILiveVoiceService, LiveHandlers, audioUtils } from './liveVoiceService';
 
-export interface LiveHandlers {
-  onTranscription?: (text: string, isUser: boolean) => void;
-  onTurnComplete?: () => void;
-  onToolCall?: (functionCalls: any[]) => void;
-  onError?: (error: any) => void;
-  onClose?: (e: CloseEvent) => void;
-}
-
-function encode(bytes: Uint8Array) {
-  let binary = '';
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-function decode(base64: string) {
-  const binaryString = atob(base64);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
-}
-
-async function decodeAudioData(
-  data: Uint8Array,
-  ctx: AudioContext,
-  sampleRate: number,
-  numChannels: number,
-): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
-  const frameCount = dataInt16.length / numChannels;
-  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
-
-  for (let channel = 0; channel < numChannels; channel++) {
-    const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) {
-      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-    }
-  }
-  return buffer;
-}
-
-export class GeminiLiveService {
+export class GeminiLiveService implements ILiveVoiceService {
   private ai: GoogleGenAI;
   private sessionPromise: Promise<any> | null = null;
   private audioContext: AudioContext | null = null;
@@ -57,6 +12,7 @@ export class GeminiLiveService {
   private stream: MediaStream | null = null;
 
   constructor(apiKey: string) {
+    // Correct initialization with named parameter for GoogleGenAI
     this.ai = new GoogleGenAI({ apiKey });
   }
 
@@ -74,49 +30,37 @@ export class GeminiLiveService {
         speechConfig: {
           voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
         },
-        // 关键：必须开启转写才能在 UI 显示文字气泡
         inputAudioTranscription: {},
         outputAudioTranscription: {},
       },
       callbacks: {
-        onopen: () => {
-          this.streamMicrophone();
-        },
+        onopen: () => this.streamMicrophone(),
         onmessage: async (message: LiveServerMessage) => {
-          // 处理用户转写（实时显示用户说的内容）
           if (message.serverContent?.inputTranscription) {
             handlers.onTranscription?.(message.serverContent.inputTranscription.text, true);
           }
-          // 处理 AI 转写（实时显示 AI 说的内容）
           if (message.serverContent?.outputTranscription) {
             handlers.onTranscription?.(message.serverContent.outputTranscription.text, false);
           }
-          // 轮次结束，用于 commit 消息到历史记录
           if (message.serverContent?.turnComplete) {
             handlers.onTurnComplete?.();
           }
-          
           if (message.toolCall) {
             handlers.onToolCall?.(message.toolCall.functionCalls);
             for (const fc of message.toolCall.functionCalls) {
-              this.sessionPromise?.then((session) => {
-                session.sendToolResponse({
-                  functionResponses: [{ id: fc.id, name: fc.name, response: { result: "ok" } }]
-                });
-              });
+              this.sendToolResponse(fc.id, fc.name, "ok");
             }
           }
 
           const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
           if (base64Audio && this.audioContext) {
+            // Schedule the next audio chunk at the exact end of the previous one for smooth playback
             this.nextStartTime = Math.max(this.nextStartTime, this.audioContext.currentTime);
-            const audioBuffer = await decodeAudioData(decode(base64Audio), this.audioContext, 24000, 1);
+            const audioBuffer = await audioUtils.decodeAudioData(audioUtils.decode(base64Audio), this.audioContext, 24000, 1);
             const source = this.audioContext.createBufferSource();
             source.buffer = audioBuffer;
             source.connect(this.audioContext.destination);
-            source.addEventListener('ended', () => {
-              this.sources.delete(source);
-            });
+            source.addEventListener('ended', () => this.sources.delete(source));
             source.start(this.nextStartTime);
             this.nextStartTime += audioBuffer.duration;
             this.sources.add(source);
@@ -126,17 +70,25 @@ export class GeminiLiveService {
             this.stopAllAudio();
           }
         },
-        onerror: (e: any) => {
-          console.error("Live API Error:", e);
-          handlers.onError?.(e);
-        },
-        onclose: (e: CloseEvent) => {
-          handlers.onClose?.(e);
-        },
+        onerror: (e: any) => handlers.onError?.(e),
+        onclose: (e: CloseEvent) => handlers.onClose?.(e),
       },
     });
 
     return this.sessionPromise;
+  }
+
+  // Updated functionResponses to follow the exact object signature from the guidelines
+  sendToolResponse(id: string, name: string, response: any) {
+    this.sessionPromise?.then((session) => {
+      session.sendToolResponse({
+        functionResponses: {
+          id,
+          name,
+          response: { result: response }
+        }
+      });
+    });
   }
 
   private streamMicrophone() {
@@ -147,33 +99,27 @@ export class GeminiLiveService {
     processor.onaudioprocess = (e) => {
       const inputData = e.inputBuffer.getChannelData(0);
       const pcmBlob = this.createPcmBlob(inputData);
-      if (this.sessionPromise) {
-        this.sessionPromise.then((session) => {
-          session.sendRealtimeInput({ media: pcmBlob });
-        }).catch(() => {});
-      }
+      // Strictly rely on sessionPromise resolution as per SDK safety rules
+      this.sessionPromise?.then((session) => {
+        session.sendRealtimeInput({ media: pcmBlob });
+      });
     };
 
     source.connect(processor);
     processor.connect(this.inputAudioContext.destination);
   }
 
-  private createPcmBlob(data: Float32Array): Blob {
-    const l = data.length;
-    const int16 = new Int16Array(l);
-    for (let i = 0; i < l; i++) {
-      int16[i] = data[i] * 32768;
-    }
+  private createPcmBlob(data: Float32Array): { data: string, mimeType: string } {
+    const int16 = new Int16Array(data.length);
+    for (let i = 0; i < data.length; i++) int16[i] = data[i] * 32768;
     return {
-      data: encode(new Uint8Array(int16.buffer)),
+      data: audioUtils.encode(new Uint8Array(int16.buffer)),
       mimeType: 'audio/pcm;rate=16000',
     };
   }
 
   private stopAllAudio() {
-    for (const source of this.sources.values()) {
-      try { source.stop(); } catch (e) {}
-    }
+    this.sources.forEach(s => { try { s.stop(); } catch (e) {} });
     this.sources.clear();
     this.nextStartTime = 0;
   }
@@ -182,13 +128,10 @@ export class GeminiLiveService {
     if (this.sessionPromise) {
       const session = await this.sessionPromise;
       session.close();
-      this.sessionPromise = null;
     }
     this.stopAllAudio();
-    if (this.audioContext) await this.audioContext.close();
-    if (this.inputAudioContext) await this.inputAudioContext.close();
-    if (this.stream) {
-      this.stream.getTracks().forEach(track => track.stop());
-    }
+    this.audioContext?.close();
+    this.inputAudioContext?.close();
+    this.stream?.getTracks().forEach(track => track.stop());
   }
 }
