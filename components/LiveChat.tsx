@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI } from "@google/genai";
+import { textAiService } from '../services/textAiService';
 import { LiveServiceFactory } from '../services/liveServiceFactory';
 import { ILiveVoiceService } from '../services/liveVoiceService';
 import { Role, ChatMessage, Session, Correction, Language, KeyPoint, VoiceProvider } from '../types';
 import { storageService } from '../services/storageService';
-import { Mic, MicOff, AlertCircle, RefreshCw, X, User, Bot, Volume2, Languages, FileText, BrainCircuit, HelpCircle, Send, Sparkles, Skull, Bookmark, BookmarkCheck, Zap, Globe, Shield, Cpu } from 'lucide-react';
+import { Mic, MicOff, AlertCircle, RefreshCw, X, User, Bot, Volume2, Languages, FileText, BrainCircuit, HelpCircle, Send, Sparkles, Skull, Bookmark, BookmarkCheck, Zap, Globe, Shield, Cpu, Flame, Sunrise, Coffee, Briefcase, Sword, Waves, Utensils, Building2 } from 'lucide-react';
 
 interface LiveChatProps {
   role: Role;
@@ -33,6 +33,11 @@ const LiveChat: React.FC<LiveChatProps> = ({ role, onClose }) => {
   const startTimeRef = useRef<number>(Date.now());
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const isStrictRole = role.id === '4' || role.id === '6';
+  const isIndianFunny = role.id === '9';
+  const isJapaneseFunny = role.id === '10';
+  const isCantoneseFunny = role.id === '11';
+
   useEffect(() => {
     scrollToBottom();
   }, [messages, interimUserText, interimAiText, isAiThinking]);
@@ -44,13 +49,7 @@ const LiveChat: React.FC<LiveChatProps> = ({ role, onClose }) => {
   const translateText = async (text: string, id: string) => {
     if (!showTranslation || !text.trim()) return;
     try {
-      // Create a fresh instance for the call as per SDK guidelines to ensure latest configuration
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `You are a professional translator. Translate this ${role.language} text to natural Chinese. Output ONLY the translation:\n"${text}"`,
-      });
-      const translation = response.text?.trim();
+      const translation = await textAiService.generate(`You are a professional translator. Translate this text to natural Chinese. Output ONLY the translation:\n"${text}"`);
       if (translation) {
         setMessages(prev => prev.map(m => m.id === id ? { ...m, translation } : m));
       }
@@ -59,34 +58,18 @@ const LiveChat: React.FC<LiveChatProps> = ({ role, onClose }) => {
     }
   };
 
-  const togglePinMessage = (msg: ChatMessage) => {
-    const isNowPinned = !msg.isPinned;
-    setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isPinned: isNowPinned } : m));
-
-    if (isNowPinned) {
-      const kp: KeyPoint = {
-        id: msg.id,
-        sessionId: startTimeRef.current.toString(),
-        roleName: role.name,
-        content: msg.text,
-        translation: msg.translation,
-        timestamp: new Date().toISOString()
-      };
-      storageService.saveKeyPoint(kp);
-    } else {
-      storageService.deleteKeyPoint(msg.id);
-    }
-  };
-
   const startSession = async () => {
     setIsConnecting(true);
     setConnectionError(null);
     
-    // 动态创建服务
     const service = LiveServiceFactory.create(role.provider);
     serviceRef.current = service;
 
     try {
+      if (!window.isSecureContext) {
+        throw new Error("语音功能需要 HTTPS 环境或 Localhost 才能运行。");
+      }
+
       await service.connect(role.systemPrompt, {
         onTranscription: (text, isUser) => {
           if (isUser) {
@@ -106,7 +89,6 @@ const LiveChat: React.FC<LiveChatProps> = ({ role, onClose }) => {
             const newMsg: ChatMessage = { id, role: 'user', text, timestamp: new Date().toISOString() };
             setMessages(prev => [...prev, newMsg]);
             translateText(text, id);
-            checkGrammar(text);
             accumulatedUserRef.current = '';
             setInterimUserText('');
             setIsAiThinking(true);
@@ -123,33 +105,20 @@ const LiveChat: React.FC<LiveChatProps> = ({ role, onClose }) => {
             setIsAiThinking(false);
           }
         },
-        onError: (err) => {
+        onError: (err: any) => {
           console.error("Session Error:", err);
-          setConnectionError(err.message || "连接服务商失败，请检查网络或 API Key。");
-          setIsConnecting(false);
+          setConnectionError(err?.message || "与服务器的实时连接中断。");
+          setIsActive(false);
         },
         onClose: () => setIsActive(false),
       });
       setIsActive(true);
       startTimeRef.current = Date.now();
     } catch (err: any) {
-      setConnectionError(err.message || "无法初始化语音服务。");
+      console.error("Connection Failed:", err);
+      setConnectionError(err?.message || "初始化服务失败。");
     } finally {
       setIsConnecting(false);
-    }
-  };
-
-  const checkGrammar = async (text: string) => {
-    // 简单的关键词校验，实际应调用 AI
-    const lower = text.toLowerCase();
-    if (lower.includes('i is') || lower.includes('have go') || lower.includes('me like')) {
-      const correction: Correction = {
-        original: text,
-        corrected: text.replace(/i is/i, 'I am').replace(/have go/i, 'have gone').replace(/me like/i, 'I like'),
-        explanation: "检测到基础语法错误（主谓一致或时态）。",
-        timestamp: new Date().toISOString()
-      };
-      setCorrections(prev => [correction, ...prev]);
     }
   };
 
@@ -172,49 +141,56 @@ const LiveChat: React.FC<LiveChatProps> = ({ role, onClose }) => {
   const generateSummary = async () => {
     const history = messages.map(m => `${m.role}: ${m.text}`).join('\n');
     try {
-      // Create a fresh instance for the call as per SDK guidelines
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `你是一位AI导师。请为刚才的会话生成一份中文学习总结。指出语法错误，并给出2个后续练习建议。\n\n对话历史：\n${history}`,
-      });
-      setSessionSummary(response.text || "总结生成失败。");
+      const summary = await textAiService.generate(`你是一位AI导师。请为刚才的会话生成一份学习总结。特别点评一下用户在掌握角色发音神韵方面的表现，给出改进建议。\n\n对话历史：\n${history}`);
+      setSessionSummary(summary || "总结生成失败。");
     } catch (e) {
       setSessionSummary("生成总结时出错。");
     }
   };
 
-  const getProviderIcon = (provider: VoiceProvider) => {
-    switch (provider) {
-      case VoiceProvider.GEMINI: return <Sparkles size={14} className="text-blue-400" />;
-      case VoiceProvider.ZHIPU_GLM: return <Zap size={14} className="text-amber-400" />;
-      case VoiceProvider.OPENAI: return <Globe size={14} className="text-emerald-400" />;
-      // Fix: Added missing Cpu import from lucide-react (line 189 fix)
-      default: return <Cpu size={14} />;
-    }
+  const getRoleIcon = (roleId: string, size = 20) => {
+    if (roleId === '4') return <Skull className="text-red-400" size={size} />;
+    if (roleId === '6') return <Flame className="text-orange-500" size={size} />;
+    if (roleId === '9') return <Zap className="text-amber-500" size={size} />;
+    if (roleId === '10') return <Sword className="text-rose-500" size={size} />;
+    if (roleId === '11') return <Building2 className="text-emerald-500" size={size} />;
+    return <Bot className="text-indigo-400" size={size} />;
+  };
+
+  const getThemeColors = () => {
+    if (isStrictRole) return 'bg-red-950/10 text-red-100';
+    if (isIndianFunny) return 'bg-amber-950/10 text-amber-100';
+    if (isJapaneseFunny) return 'bg-rose-950/10 text-rose-100';
+    if (isCantoneseFunny) return 'bg-[#081a14] text-emerald-50';
+    return 'bg-[#0b0e14] text-slate-100';
+  };
+
+  const getBubbleStyle = (isAi: boolean) => {
+    if (!isAi) return 'bg-indigo-600 text-white rounded-tr-none shadow-lg';
+    if (isStrictRole) return 'bg-red-900/30 border-red-500/20 text-red-100 rounded-tl-none border';
+    if (isIndianFunny) return 'bg-amber-900/30 border-amber-500/20 text-amber-100 rounded-tl-none border';
+    if (isJapaneseFunny) return 'bg-rose-900/30 border-rose-500/20 text-rose-100 rounded-tl-none border';
+    if (isCantoneseFunny) return 'bg-emerald-900/20 border-emerald-500/20 text-emerald-100 rounded-tl-none border backdrop-blur-md shadow-[0_4px_20px_rgba(16,185,129,0.1)]';
+    return 'bg-[#1a1f2e] border-white/5 text-slate-100 rounded-tl-none border';
   };
 
   return (
-    <div className={`fixed inset-0 z-50 flex flex-col ${role.id === '4' ? 'bg-red-950/10' : 'bg-[#0b0e14]'} text-slate-100 animate-in fade-in duration-300`}>
-      {/* Top Header */}
-      <div className={`flex items-center justify-between p-4 border-b border-white/5 ${role.id === '4' ? 'bg-red-900/20' : 'bg-[#12161f]/90'} backdrop-blur-xl z-20`}>
+    <div className={`fixed inset-0 z-50 flex flex-col ${getThemeColors()} animate-in fade-in duration-300`}>
+      <div className={`flex items-center justify-between p-4 border-b border-white/5 ${isStrictRole ? 'bg-red-900/40' : isIndianFunny ? 'bg-amber-900/40' : isJapaneseFunny ? 'bg-rose-900/40' : isCantoneseFunny ? 'bg-emerald-900/40 border-emerald-500/20' : 'bg-[#12161f]/90'} backdrop-blur-xl z-20`}>
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${role.id === '4' ? 'bg-red-500/20 border border-red-500/30' : 'bg-indigo-500/10 border border-indigo-500/20'}`}>
-            {role.id === '4' ? <Skull className="text-red-400" size={20} /> : <Bot className="text-indigo-400" size={20} />}
+          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-black/20 border border-white/10">
+            {getRoleIcon(role.id)}
           </div>
           <div>
             <h2 className="font-bold">{role.name}</h2>
             <div className="flex items-center gap-2">
-              <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${isActive ? 'bg-emerald-500' : 'bg-slate-500'}`}></span>
-              <p className="text-[10px] text-slate-500 font-black tracking-widest uppercase flex items-center gap-1">
-                {role.language} • {role.provider} {getProviderIcon(role.provider)}
-              </p>
+              <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`}></span>
+              <p className="text-[10px] text-slate-400 font-black tracking-widest uppercase">{role.language} • {role.provider}</p>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-3">
-           <button onClick={() => setShowTranslation(!showTranslation)} className={`flex items-center gap-2 px-4 py-1.5 rounded-full border text-[10px] font-black transition-all ${showTranslation ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-400' : 'bg-transparent border-white/10 text-slate-500'}`}>
-            <Languages size={14} />
+          <button onClick={() => setShowTranslation(!showTranslation)} className={`px-4 py-1.5 rounded-full border text-[10px] font-black transition-all ${showTranslation ? 'bg-white/10 border-white/20' : 'bg-transparent border-white/5 text-slate-500'}`}>
             {showTranslation ? '翻译开启' : '原文模式'}
           </button>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400">
@@ -225,233 +201,123 @@ const LiveChat: React.FC<LiveChatProps> = ({ role, onClose }) => {
 
       <div className="flex-1 flex overflow-hidden relative">
         <div className="flex-1 flex flex-col p-4 md:p-10 overflow-y-auto scrollbar-hide space-y-8 bg-[#0b0e14]">
-          {/* Landing State */}
           {!isActive && !isConnecting && !sessionSummary && (
             <div className="flex-1 flex flex-col items-center justify-center text-center space-y-8 max-w-md mx-auto py-12">
-              <div className="relative group">
-                <div className={`w-32 h-32 rounded-full flex items-center justify-center border-2 ${role.id === '4' ? 'bg-red-500/10 border-red-500/20' : 'bg-indigo-500/10 border-indigo-500/20'}`}>
-                   {role.id === '4' ? <Skull size={64} className="text-red-500" /> : <Mic size={64} className="text-indigo-400" />}
+              <div className="relative">
+                <div className={`w-32 h-32 rounded-full flex items-center justify-center border-2 ${isIndianFunny ? 'bg-amber-500/10 border-amber-500/20' : isJapaneseFunny ? 'bg-rose-500/10 border-rose-500/20' : isCantoneseFunny ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-indigo-500/10 border-indigo-500/20'}`}>
+                   {getRoleIcon(role.id, 64)}
                 </div>
-                <div className={`absolute inset-0 rounded-full border-4 animate-ping ${role.id === '4' ? 'border-red-500/20' : 'border-indigo-500/20'}`}></div>
+                <div className={`absolute -inset-4 rounded-full border animate-ping opacity-20 ${isIndianFunny ? 'border-amber-500' : isJapaneseFunny ? 'border-rose-500' : isCantoneseFunny ? 'border-emerald-500' : 'border-indigo-500'}`}></div>
               </div>
-              <div className="space-y-4">
-                <h3 className="text-3xl font-black text-white">{role.id === '4' ? '准备好面对挑战了吗？' : '开始语音练习'}</h3>
-                <div className="flex items-center justify-center gap-2 bg-white/5 py-2 px-4 rounded-full border border-white/10">
-                  {getProviderIcon(role.provider)}
-                  <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">基于 {role.provider} 驱动</p>
-                </div>
-                <p className="text-slate-400 text-sm leading-relaxed px-4">{role.description}</p>
+              <div className="space-y-2">
+                <h3 className="text-3xl font-black text-white">
+                  {isCantoneseFunny ? '雷吼啊！想学煲冬瓜？' : isIndianFunny ? 'Namaste! Ready to搖?' : isJapaneseFunny ? 'Domo! Let\'s Speak Katakana!' : '开始练习'}
+                </h3>
+                <p className="text-slate-400 text-sm">{role.description}</p>
               </div>
-
-              {connectionError && (
-                <div className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-3 text-left">
-                  <AlertCircle className="text-red-500 shrink-0" size={18} />
-                  <p className="text-xs text-red-400 font-medium leading-relaxed">{connectionError}</p>
-                </div>
-              )}
-
-              <button onClick={startSession} className={`px-14 py-5 rounded-full font-black shadow-2xl transition-all text-lg flex items-center gap-3 ${role.id === '4' ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-900/40' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-900/40'}`}>
-                <Sparkles size={20} />
-                {connectionError ? '重试连接' : '开启连接'}
+              <button onClick={startSession} className={`px-14 py-5 rounded-full font-black shadow-2xl transition-all text-lg ${isCantoneseFunny ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/40' : isIndianFunny ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-900/40' : isJapaneseFunny ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-900/40' : 'bg-indigo-600 hover:bg-indigo-500'}`}>
+                {isCantoneseFunny ? '中环开练' : '开启灵魂教学'}
               </button>
             </div>
           )}
 
-          {/* Connecting State */}
           {isConnecting && (
             <div className="flex-1 flex flex-col items-center justify-center space-y-6">
-              <div className="relative">
-                <RefreshCw className="text-indigo-500 animate-spin" size={64} />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  {getProviderIcon(role.provider)}
-                </div>
-              </div>
-              <div className="text-center space-y-2">
-                <p className="text-indigo-400 font-bold tracking-widest uppercase text-xs">正在请求 {role.provider} ...</p>
-                <p className="text-slate-500 text-[10px] animate-pulse">正在握手并初始化实时音频通道</p>
-              </div>
+              <RefreshCw className="text-indigo-500 animate-spin" size={64} />
+              <p className="text-indigo-400 font-bold tracking-widest uppercase text-xs">正在建立灵魂连接...</p>
             </div>
           )}
 
-          {/* Chat Messages */}
           {isActive && (
-            <div className="flex flex-col space-y-8">
+            <div className="flex flex-col space-y-8 pb-32">
               {messages.map((m) => (
-                <div key={m.id} className={`flex w-full group/msg ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div key={m.id} className={`flex w-full ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`flex items-start gap-4 max-w-[85%] md:max-w-[75%] ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border shadow-xl ${m.role === 'user' ? 'bg-indigo-600 border-indigo-500' : 'bg-[#1a1f2e] border-white/5'}`}>
-                      {m.role === 'user' ? <User size={18} /> : (role.id === '4' ? <Skull size={18} className="text-red-400" /> : <Bot size={18} className="text-indigo-400" />)}
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${m.role === 'user' ? 'bg-indigo-600 border-indigo-500' : 'bg-[#1a1f2e] border-white/10'}`}>
+                      {m.role === 'user' ? <User size={18} /> : getRoleIcon(role.id, 18)}
                     </div>
                     <div className={`flex flex-col space-y-1 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
-                      <div className="relative">
-                        <button onClick={() => togglePinMessage(m)} className={`absolute top-0 ${m.role === 'user' ? '-left-8' : '-right-8'} p-1.5 rounded-full transition-all opacity-0 group-hover/msg:opacity-100 hover:bg-white/10 ${m.isPinned ? 'text-amber-400 opacity-100' : 'text-slate-600 hover:text-slate-300'}`}>
-                          {m.isPinned ? <BookmarkCheck size={18} fill="currentColor" /> : <Bookmark size={18} />}
-                        </button>
-                        <div className={`p-4 rounded-3xl shadow-2xl transition-all duration-300 animate-in slide-in-from-bottom-2 ${m.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-none' : `bg-[#1a1f2e] text-slate-100 rounded-tl-none border ${role.id === '4' ? 'border-red-500/10' : 'border-white/5'}`} ${m.isPinned ? 'ring-2 ring-amber-500/30' : ''}`}>
-                          <p className="text-sm md:text-base leading-relaxed whitespace-pre-wrap font-medium">{m.text}</p>
-                          {showTranslation && m.translation && (
-                            <div className={`mt-3 pt-3 border-t border-white/10 text-xs md:text-sm font-medium leading-relaxed italic ${m.role === 'user' ? 'text-indigo-100/70' : 'text-slate-500'}`}>
-                              {m.translation}
-                            </div>
-                          )}
-                        </div>
+                      <div className={getBubbleStyle(m.role === 'assistant')}>
+                        <p className="text-sm md:text-base leading-relaxed p-4">{m.text}</p>
+                        {showTranslation && m.translation && (
+                          <div className="mt-2 pt-3 border-t border-white/10 text-xs italic px-4 pb-4 opacity-70">
+                            {m.translation}
+                          </div>
+                        )}
                       </div>
-                      <span className="text-[10px] text-slate-600 font-bold px-2 uppercase flex items-center gap-2">
-                        {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        {m.isPinned && <span className="text-amber-500 flex items-center gap-0.5"><Bookmark size={10} fill="currentColor" />已记重点</span>}
-                      </span>
                     </div>
                   </div>
                 </div>
               ))}
-              {/* Interim Text */}
+              
               {interimUserText && (
-                <div className="flex w-full justify-end animate-in fade-in duration-200">
+                <div className="flex w-full justify-end animate-in fade-in">
                   <div className="flex flex-row-reverse items-start gap-4 max-w-[85%] md:max-w-[75%]">
                     <div className="w-10 h-10 rounded-full bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
                       <User size={18} className="text-indigo-400 animate-pulse" />
                     </div>
-                    <div className="p-4 rounded-3xl bg-indigo-600/10 border-2 border-dashed border-indigo-500/30 text-indigo-100/70 italic shadow-lg rounded-tr-none">
-                      <p className="text-sm">{interimUserText}<span className="animate-pulse">...</span></p>
+                    <div className="p-4 rounded-3xl bg-indigo-600/10 border-2 border-dashed border-indigo-500/30 text-indigo-200/50 italic rounded-tr-none">
+                      <p className="text-sm">{interimUserText}...</p>
                     </div>
                   </div>
                 </div>
               )}
+
               {interimAiText && (
-                <div className="flex w-full justify-start animate-in fade-in duration-200">
+                <div className="flex w-full justify-start animate-in fade-in">
                   <div className="flex items-start gap-4 max-w-[85%] md:max-w-[75%]">
                     <div className="w-10 h-10 rounded-full bg-[#1a1f2e] border border-white/5 flex items-center justify-center shrink-0">
-                      {role.id === '4' ? <Skull size={18} className="text-red-400" /> : <Bot size={18} className="text-indigo-400" />}
+                      {getRoleIcon(role.id, 18)}
                     </div>
-                    <div className={`p-4 rounded-3xl bg-[#1a1f2e] text-slate-100 rounded-tl-none border shadow-2xl ${role.id === '4' ? 'border-red-500/20' : 'border-white/5'}`}>
-                      <p className="text-sm md:text-base leading-relaxed">{interimAiText}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {isAiThinking && !interimAiText && (
-                <div className="flex w-full justify-start">
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-full bg-[#1a1f2e] border border-white/5 flex items-center justify-center shrink-0">
-                      {role.id === '4' ? <Skull size={18} className="text-red-400" /> : <Bot size={18} className="text-indigo-400" />}
-                    </div>
-                    <div className="flex gap-2 p-4 bg-[#1a1f2e]/50 rounded-full px-7 border border-white/5">
-                      <div className={`w-2 h-2 rounded-full animate-bounce [animation-delay:0s] ${role.id === '4' ? 'bg-red-500' : 'bg-indigo-500'}`}></div>
-                      <div className={`w-2 h-2 rounded-full animate-bounce [animation-delay:0.2s] ${role.id === '4' ? 'bg-red-500' : 'bg-indigo-500'}`}></div>
-                      <div className={`w-2 h-2 rounded-full animate-bounce [animation-delay:0.4s] ${role.id === '4' ? 'bg-red-500' : 'bg-indigo-500'}`}></div>
+                    <div className={getBubbleStyle(true)}>
+                      <p className="text-sm md:text-base p-4">{interimAiText}</p>
                     </div>
                   </div>
                 </div>
               )}
+
               <div ref={messagesEndRef} />
             </div>
           )}
 
-          {/* Summary State */}
           {sessionSummary && (
-            <div className="max-w-4xl mx-auto w-full py-12 animate-in fade-in slide-in-from-bottom-12 duration-700">
-              <div className="bg-[#12161f] border border-white/5 rounded-[3rem] p-8 md:p-14 shadow-2xl space-y-12">
+            <div className="max-w-4xl mx-auto w-full py-12 animate-in slide-in-from-bottom-12">
+              <div className={`border border-white/5 rounded-[3rem] p-8 md:p-14 shadow-2xl space-y-12 ${isCantoneseFunny ? 'bg-[#081a14]' : 'bg-[#12161f]'}`}>
                 <div className="flex items-center gap-5 border-b border-white/5 pb-8">
-                  <div className="w-16 h-16 rounded-2xl bg-indigo-500/20 flex items-center justify-center">
-                    <BrainCircuit className="text-indigo-400" size={36} />
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${isCantoneseFunny ? 'bg-emerald-500/20' : 'bg-indigo-500/20'}`}>
+                    <BrainCircuit className={isCantoneseFunny ? 'text-emerald-400' : 'text-indigo-400'} size={36} />
                   </div>
-                  <h3 className="text-4xl font-black text-white tracking-tighter">本场学习报告</h3>
+                  <h3 className="text-4xl font-black text-white">对话学成报告</h3>
                 </div>
-                <div className="prose prose-invert max-w-none bg-[#0b0e14]/60 rounded-[2rem] p-8 border border-white/5">
-                   <div className="whitespace-pre-wrap leading-relaxed text-slate-300 font-medium">{sessionSummary}</div>
+                <div className="prose prose-invert max-w-none text-slate-300 whitespace-pre-wrap leading-relaxed">
+                   {sessionSummary}
                 </div>
                 <div className="flex gap-5">
-                  <button onClick={() => location.reload()} className="flex-1 py-5 bg-white/5 border border-white/10 text-white rounded-3xl font-black">重新练习</button>
-                  <button onClick={onClose} className="flex-1 py-5 bg-indigo-600 text-white rounded-3xl font-black shadow-2xl shadow-indigo-900/40">回到主页</button>
+                  <button onClick={() => location.reload()} className="flex-1 py-5 bg-white/5 border border-white/10 text-white rounded-3xl font-black">再战一次</button>
+                  <button onClick={onClose} className="flex-1 py-5 bg-indigo-600 text-white rounded-3xl font-black">完成</button>
                 </div>
               </div>
             </div>
           )}
         </div>
-
-        {/* Feedback Sidebar */}
-        {!sessionSummary && (
-          <div className="w-96 bg-[#0f131a] border-l border-white/5 p-8 overflow-y-auto hidden xl:block shadow-2xl">
-            <div className="flex items-center gap-3 mb-10 pb-6 border-b border-white/5">
-              <Shield className="text-indigo-400" size={24} />
-              <h3 className="font-black text-slate-100 tracking-widest uppercase text-sm">引擎监控</h3>
-            </div>
-            <div className="mb-8 p-5 bg-indigo-500/10 rounded-3xl border border-indigo-500/20 space-y-3">
-               <div className="flex items-center justify-between">
-                 <span className="text-[10px] font-black text-slate-500 uppercase">供应商状态</span>
-                 <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[9px] font-black rounded-full">ACTIVE</span>
-               </div>
-               <div className="flex items-center gap-3">
-                 <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-                    {getProviderIcon(role.provider)}
-                 </div>
-                 <p className="text-xs font-bold text-slate-200">{role.provider}</p>
-               </div>
-            </div>
-
-            <div className="flex items-center gap-3 mb-6 pb-2">
-              <AlertCircle className="text-amber-500" size={18} />
-              <h3 className="font-black text-slate-100 tracking-widest uppercase text-[10px]">语法侦测</h3>
-            </div>
-            <div className="space-y-6">
-              {corrections.length === 0 ? (
-                <div className="h-64 flex flex-col items-center justify-center opacity-10 text-center space-y-4">
-                  <FileText size={48} />
-                  <p className="text-[10px] font-black uppercase tracking-widest">等待对话生成反馈...</p>
-                </div>
-              ) : (
-                corrections.map((c, i) => (
-                  <div key={i} className={`p-6 bg-[#1a1f2e] border rounded-[2rem] space-y-4 animate-in slide-in-from-right-4 group ${role.id === '4' ? 'border-red-500/30' : 'border-white/5'}`}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">建议修改</span>
-                      <Volume2 size={14} className="text-amber-500" />
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-xs text-rose-500/60 line-through">"{c.original}"</p>
-                      <p className="text-sm text-emerald-400 font-black">"{c.corrected}"</p>
-                    </div>
-                    <p className="text-xs text-slate-500 leading-relaxed font-bold bg-black/20 p-3 rounded-xl">{c.explanation}</p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Mic Controls */}
-      {!sessionSummary && (
-        <div className={`p-12 flex flex-col items-center border-t border-white/5 shadow-2xl ${role.id === '4' ? 'bg-red-950/20' : 'bg-[#0b0e14]/98'}`}>
-          {isActive ? (
-            <div className="flex flex-col items-center space-y-10">
-              <div className="flex items-center gap-24">
-                <button className="p-7 rounded-full bg-[#1a1f2e] text-slate-500 hover:text-white transition-all shadow-xl">
-                    <MicOff size={36} />
-                </button>
-                <div className="relative group scale-125">
-                  <div className={`absolute -inset-10 rounded-full animate-voice opacity-20 ${role.id === '4' ? 'bg-red-600' : 'bg-indigo-600'}`}></div>
-                  <div className={`w-32 h-32 rounded-full flex items-center justify-center shadow-2xl z-10 relative border-4 border-white/5 ${role.id === '4' ? 'bg-red-600 shadow-red-900/50' : 'bg-indigo-600 shadow-indigo-900/50'}`}>
-                    <Mic size={56} className="text-white" />
-                  </div>
-                </div>
-                <button onClick={endSession} className="p-7 rounded-full bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 transition-all shadow-xl">
-                  <FileText size={36} />
-                </button>
-              </div>
-              <div className="flex flex-col items-center gap-3">
-                <p className={`text-[11px] font-black tracking-[0.5em] uppercase ${role.id === '4' ? 'text-red-500' : 'text-indigo-500'}`}>
-                  {role.id === '4' ? '实时连接中' : '语音通道已激活'}
-                </p>
-                <div className="flex gap-1.5 h-4 items-end">
-                   {[...Array(12)].map((_, i) => (
-                    <div key={i} className={`w-1 rounded-full animate-pulse ${role.id === '4' ? 'bg-red-500' : 'bg-indigo-500'}`} style={{ height: `${30 + Math.random() * 70}%`, animationDelay: `${i * 0.1}s` }}></div>
-                   ))}
-                </div>
+      {!sessionSummary && isActive && (
+        <div className={`fixed bottom-0 left-0 right-0 p-12 flex flex-col items-center backdrop-blur-md border-t border-white/5 z-30 ${isIndianFunny ? 'bg-amber-950/20' : isJapaneseFunny ? 'bg-rose-950/20' : isCantoneseFunny ? 'bg-emerald-950/40' : 'bg-black/50'}`}>
+          <div className="flex items-center gap-16">
+            <button className="p-6 rounded-full bg-white/5 text-slate-500">
+                <MicOff size={32} />
+            </button>
+            <div className="relative group">
+              <div className={`absolute -inset-10 rounded-full animate-voice opacity-20 ${isIndianFunny ? 'bg-amber-500' : isJapaneseFunny ? 'bg-rose-500' : isCantoneseFunny ? 'bg-emerald-500' : 'bg-indigo-600'}`}></div>
+              <div className={`w-24 h-24 rounded-full flex items-center justify-center shadow-2xl z-10 relative ${isIndianFunny ? 'bg-amber-600' : isJapaneseFunny ? 'bg-rose-600' : isCantoneseFunny ? 'bg-emerald-600' : 'bg-indigo-600'}`}>
+                <Mic size={40} className="text-white" />
               </div>
             </div>
-          ) : !isConnecting && (
-            <p className="text-slate-700 text-[11px] font-black tracking-[0.4em] uppercase">Ready to Start</p>
-          )}
+            <button onClick={endSession} className="p-6 rounded-full bg-rose-500/10 text-rose-500 hover:bg-rose-500/20">
+              <FileText size={32} />
+            </button>
+          </div>
         </div>
       )}
     </div>

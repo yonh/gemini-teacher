@@ -1,5 +1,5 @@
 
-import { Session, Role, VocabularyWord, UserProgress, Language, KeyPoint } from '../types';
+import { Session, Role, VocabularyWord, UserProgress, Language, KeyPoint, UserSettings, VoiceProvider } from '../types';
 import { STORAGE_KEYS, DEFAULT_ROLES } from '../constants';
 
 export const storageService = {
@@ -73,15 +73,32 @@ export const storageService = {
     localStorage.setItem(STORAGE_KEYS.KEY_POINTS, JSON.stringify(filtered));
   },
 
-  getCredentials: (): Record<string, string> => {
+  getSettings: (): UserSettings => {
     const data = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-    return data ? JSON.parse(data).credentials || {} : {};
+    const defaultSettings: UserSettings = {
+      credentials: {},
+      preferredTextProvider: VoiceProvider.GEMINI,
+      preferredTextModel: "gemini-3-flash-preview",
+      preferredRealtimeProvider: VoiceProvider.GEMINI, // 默认实时引擎为 Gemini
+      preferredRealtimeModel: "gemini-2.5-flash-native-audio-preview-12-2025"
+    };
+    return data ? JSON.parse(data) : defaultSettings;
+  },
+
+  getCredentials: (): Record<string, string> => {
+    return storageService.getSettings().credentials;
+  },
+
+  saveSettings: (settings: Partial<UserSettings>) => {
+    const current = storageService.getSettings();
+    const updated = { ...current, ...settings };
+    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updated));
   },
 
   saveCredential: (provider: string, key: string) => {
-    const settings = JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS) || '{"credentials": {}}');
-    settings.credentials = { ...settings.credentials, [provider]: key };
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+    const settings = storageService.getSettings();
+    settings.credentials[provider] = key;
+    storageService.saveSettings(settings);
   },
 
   getProgress: (): UserProgress => {
@@ -101,7 +118,7 @@ export const storageService = {
     return {
       totalSeconds: totalSec,
       totalSessions: sessions.length,
-      averageGrammarScore: 85, // Mock score
+      averageGrammarScore: 85,
       languageDistribution: dist
     };
   },
@@ -111,7 +128,8 @@ export const storageService = {
       sessions: storageService.getSessions(),
       roles: storageService.getRoles(),
       vocab: storageService.getVocab(),
-      keyPoints: storageService.getKeyPoints()
+      keyPoints: storageService.getKeyPoints(),
+      settings: storageService.getSettings()
     };
     const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);

@@ -6,21 +6,31 @@ import { ZhipuRealtimeService } from './zhipuRealtimeService';
 import { storageService } from './storageService';
 
 export class LiveServiceFactory {
-  static create(provider: VoiceProvider): ILiveVoiceService {
-    const credentials = storageService.getCredentials();
+  static create(roleProvider: VoiceProvider): ILiveVoiceService {
+    const settings = storageService.getSettings();
+    const credentials = settings.credentials;
     
+    const provider = settings.preferredRealtimeProvider || roleProvider;
+    const model = settings.preferredRealtimeModel;
+    
+    const geminiKey = credentials[VoiceProvider.GEMINI] || process.env.API_KEY || '';
+    const openAiKey = credentials[VoiceProvider.OPENAI] || '';
+    const zhipuKey = credentials[VoiceProvider.ZHIPU_GLM] || '';
+
     switch (provider) {
       case VoiceProvider.GEMINI:
-        // Gemini always uses the environment key per strict requirements
-        return new GeminiLiveService(process.env.API_KEY || '');
+        return new GeminiLiveService(geminiKey, model);
+        
       case VoiceProvider.ZHIPU_GLM:
-        return new ZhipuRealtimeService(credentials[VoiceProvider.ZHIPU_GLM] || '');
+        return new ZhipuRealtimeService(zhipuKey);
+        
       case VoiceProvider.OPENAI:
-        return new GeminiLiveService(process.env.API_KEY || ''); // Placeholder
-      case VoiceProvider.OPENROUTER:
-        return new GeminiLiveService(process.env.API_KEY || ''); // Placeholder
+        // OpenAI Realtime 暂借用 Gemini 结构作为接口占位，
+        // 在实际生产中需替换为原生 OpenAI WebSocket 实现
+        return new GeminiLiveService(openAiKey, model);
+        
       default:
-        return new GeminiLiveService(process.env.API_KEY || '');
+        return new GeminiLiveService(geminiKey, model);
     }
   }
 }

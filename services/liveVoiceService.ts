@@ -42,7 +42,12 @@ export const audioUtils = {
     sampleRate: number,
     numChannels: number,
   ): Promise<AudioBuffer> {
-    const dataInt16 = new Int16Array(data.buffer);
+    // 关键修正：确保使用的是该 View 的实际字节范围，防止 ArrayBuffer 共享导致的偏移错误
+    const actualData = data.byteOffset === 0 && data.byteLength === data.buffer.byteLength
+      ? data.buffer
+      : data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+      
+    const dataInt16 = new Int16Array(actualData);
     const frameCount = dataInt16.length / numChannels;
     const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
 

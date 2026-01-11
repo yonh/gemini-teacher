@@ -10,10 +10,11 @@ export class GeminiLiveService implements ILiveVoiceService {
   private sources = new Set<AudioBufferSourceNode>();
   private inputAudioContext: AudioContext | null = null;
   private stream: MediaStream | null = null;
+  private modelName: string;
 
-  constructor(apiKey: string) {
-    // Correct initialization with named parameter for GoogleGenAI
+  constructor(apiKey: string, modelName: string = 'gemini-2.5-flash-native-audio-preview-12-2025') {
     this.ai = new GoogleGenAI({ apiKey });
+    this.modelName = modelName;
   }
 
   async connect(systemInstruction: string, handlers: LiveHandlers, tools?: any[]) {
@@ -22,7 +23,7 @@ export class GeminiLiveService implements ILiveVoiceService {
     this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
     this.sessionPromise = this.ai.live.connect({
-      model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+      model: this.modelName, // 使用配置的模型
       config: {
         responseModalities: [Modality.AUDIO],
         systemInstruction,
@@ -54,7 +55,6 @@ export class GeminiLiveService implements ILiveVoiceService {
 
           const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
           if (base64Audio && this.audioContext) {
-            // Schedule the next audio chunk at the exact end of the previous one for smooth playback
             this.nextStartTime = Math.max(this.nextStartTime, this.audioContext.currentTime);
             const audioBuffer = await audioUtils.decodeAudioData(audioUtils.decode(base64Audio), this.audioContext, 24000, 1);
             const source = this.audioContext.createBufferSource();
@@ -78,7 +78,6 @@ export class GeminiLiveService implements ILiveVoiceService {
     return this.sessionPromise;
   }
 
-  // Updated functionResponses to follow the exact object signature from the guidelines
   sendToolResponse(id: string, name: string, response: any) {
     this.sessionPromise?.then((session) => {
       session.sendToolResponse({
@@ -99,7 +98,6 @@ export class GeminiLiveService implements ILiveVoiceService {
     processor.onaudioprocess = (e) => {
       const inputData = e.inputBuffer.getChannelData(0);
       const pcmBlob = this.createPcmBlob(inputData);
-      // Strictly rely on sessionPromise resolution as per SDK safety rules
       this.sessionPromise?.then((session) => {
         session.sendRealtimeInput({ media: pcmBlob });
       });

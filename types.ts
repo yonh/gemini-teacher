@@ -82,3 +82,11 @@ export interface UserProgress {
   averageGrammarScore: number;
   languageDistribution: Record<Language, number>;
 }
+
+export interface UserSettings {
+  credentials: Record<string, string>;
+  preferredTextProvider: VoiceProvider;
+  preferredTextModel: string;
+  preferredRealtimeProvider: VoiceProvider; // 新增：首选实时引擎提供商
+  preferredRealtimeModel: string;
+}
