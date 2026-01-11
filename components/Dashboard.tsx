@@ -1,10 +1,15 @@
 
 import React, { useMemo } from 'react';
 import { storageService } from '../services/storageService';
+import { Session } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
-import { Clock, MessageSquare, Award, Book, Bookmark } from 'lucide-react';
+import { Clock, MessageSquare, Award, Book, Bookmark, ChevronRight } from 'lucide-react';
 
-const Dashboard: React.FC = () => {
+interface DashboardProps {
+  onSelectSession?: (session: Session) => void;
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ onSelectSession }) => {
   const progress = useMemo(() => storageService.getProgress(), []);
   const sessions = useMemo(() => storageService.getSessions(), []);
   const keyPointsCount = useMemo(() => storageService.getKeyPoints().length, []);
@@ -48,7 +53,6 @@ const Dashboard: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Language Split */}
         <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <h3 className="font-semibold text-lg mb-6">语种分布</h3>
           <div className="h-64">
@@ -81,7 +85,6 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Recent Activity */}
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <h3 className="font-semibold text-lg mb-6">最近练习</h3>
           <div className="space-y-4">
@@ -91,21 +94,28 @@ const Dashboard: React.FC = () => {
               </div>
             ) : (
               recentActivity.map((s) => (
-                <div key={s.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                <button 
+                  key={s.id} 
+                  onClick={() => onSelectSession?.(s)}
+                  className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-violet-50 transition-colors border border-transparent hover:border-violet-100 group"
+                >
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center border border-gray-200 shadow-sm">
+                    <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center border border-gray-200 shadow-sm group-hover:scale-110 transition-transform">
                       <span className="text-lg">🗣️</span>
                     </div>
-                    <div>
-                      <p className="font-medium">{s.language} 练习</p>
-                      <p className="text-xs text-gray-500">{new Date(s.startTime).toLocaleDateString()}</p>
+                    <div className="text-left">
+                      <p className="font-bold text-gray-900">{s.language} 练习回顾</p>
+                      <p className="text-xs text-gray-500">{new Date(s.startTime).toLocaleDateString()} · {new Date(s.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold">{Math.round(s.duration / 60)} min</p>
-                    <p className="text-[10px] text-gray-400 uppercase">{s.corrections.length} 处修改建议</p>
+                  <div className="flex items-center gap-6">
+                    <div className="text-right">
+                      <p className="text-sm font-black text-gray-900">{Math.round(s.duration / 60)} min</p>
+                      <p className="text-[10px] text-gray-400 uppercase font-black">{s.messages.length} 条对话</p>
+                    </div>
+                    <ChevronRight className="text-gray-300 group-hover:text-violet-500 transition-colors" size={20} />
                   </div>
-                </div>
+                </button>
               ))
             )}
           </div>

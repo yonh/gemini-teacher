@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { storageService } from './services/storageService';
-import { Role, Language, RoleType, KeyPoint, VoiceProvider, UserSettings, Course, Chapter } from './types';
+import { Role, Language, RoleType, KeyPoint, VoiceProvider, UserSettings, Course, Chapter, Session } from './types';
 import { Layout, MessageCircle, BarChart2, Bookmark, Settings, UserCircle, Plus, Edit2, Save, X, Trash2, Calendar, Bot, Wand2, Cpu, Zap, Sparkles, Globe, ShieldCheck, Activity, Key, Server, Mic, GraduationCap } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import LiveChat from './components/LiveChat';
 import { RoleArchitect } from './components/RoleArchitect';
 import { CourseLibrary } from './components/CourseLibrary';
 import { ChapterPlayer } from './components/ChapterPlayer';
+import { SessionReview } from './components/SessionReview';
 
 const SidebarItem = ({ icon: Icon, label, active, onClick, variant = 'default' }: { icon: any, label: string, active: boolean, onClick: () => void, variant?: 'default' | 'special' }) => (
   <button 
@@ -40,11 +41,14 @@ const App: React.FC = () => {
   const [activeCourse, setActiveCourse] = useState<Course | null>(null);
   const [activeChapter, setActiveChapter] = useState<Chapter | null>(null);
 
+  // Review State
+  const [reviewingSession, setReviewingSession] = useState<Session | null>(null);
+
   useEffect(() => {
     setRoles(storageService.getRoles());
     setKeyPoints(storageService.getKeyPoints());
     setSettings(storageService.getSettings());
-  }, [currentView, isChatOpen, isArchitectOpen]);
+  }, [currentView, isChatOpen, isArchitectOpen, reviewingSession]);
 
   const handleStartPractice = (role: Role, courseContext?: { course: Course, chapter: Chapter }) => {
     setSelectedRole(role);
@@ -164,7 +168,7 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 overflow-y-auto bg-gray-50/50">
-        {currentView === 'dashboard' && <Dashboard />}
+        {currentView === 'dashboard' && <Dashboard onSelectSession={setReviewingSession} />}
         {currentView === 'curriculum' && <CourseLibrary onStartChapter={handleStartChapter} />}
         {currentView === 'chat' && (
           <div className="p-10 space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-700">
@@ -400,6 +404,12 @@ const App: React.FC = () => {
           chapter={activeChapter} 
           onClose={() => { setActiveCourse(null); setActiveChapter(null); }} 
           onStartPractice={(role, ctx) => handleStartPractice(role, ctx)}
+        />
+      )}
+      {reviewingSession && (
+        <SessionReview 
+          session={reviewingSession} 
+          onClose={() => setReviewingSession(null)} 
         />
       )}
 

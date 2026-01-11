@@ -5,7 +5,7 @@ import { LiveServiceFactory } from '../services/liveServiceFactory';
 import { ILiveVoiceService } from '../services/liveVoiceService';
 import { Role, ChatMessage, Session, Correction, Language, KeyPoint, VoiceProvider, Course, Chapter } from '../types';
 import { storageService } from '../services/storageService';
-import { Mic, MicOff, AlertCircle, RefreshCw, X, User, Bot, Volume2, Languages, FileText, BrainCircuit, HelpCircle, Send, Sparkles, Skull, Bookmark, BookmarkCheck, Zap, Globe, Shield, Cpu, Flame, Sunrise, Coffee, Briefcase, Sword, Waves, Utensils, Building2, Lightbulb, CheckCircle, GraduationCap, Plus } from 'lucide-react';
+import { Mic, MicOff, AlertCircle, RefreshCw, X, User, Bot, Volume2, Languages, FileText, BrainCircuit, HelpCircle, Send, Sparkles, Skull, Bookmark, BookmarkCheck, Zap, Globe, Shield, Cpu, Flame, Sunrise, Coffee, Briefcase, Sword, Waves, Utensils, Building2, Lightbulb, CheckCircle, GraduationCap, Plus, Play, Star, Loader2 } from 'lucide-react';
 
 interface LiveChatProps {
   role: Role;
@@ -29,9 +29,12 @@ const LiveChat: React.FC<LiveChatProps> = ({ role, onClose, courseContext }) => 
 
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [showTranslation, setShowTranslation] = useState(true);
   const [sessionSummary, setSessionSummary] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+  const [markedMessageIds, setMarkedMessageIds] = useState<Set<string>>(new Set());
   
   const serviceRef = useRef<ILiveVoiceService | null>(null);
   const startTimeRef = useRef<number>(Date.now());
@@ -42,17 +45,14 @@ const LiveChat: React.FC<LiveChatProps> = ({ role, onClose, courseContext }) => 
   const isJapaneseFunny = role.id === '10';
   const isCantoneseFunny = role.id === '11';
 
-  // Extract key vocab from chapter content for hints
   const hints = useMemo(() => {
     if (!courseContext) return [];
-    // Basic regex to find capitalized words or words in quotes that might be important
     const words = courseContext.chapter.content.match(/\*\*([^*]+)\*\*/g) || [];
     return words.map(w => w.replace(/\*/g, '')).slice(0, 6);
   }, [courseContext]);
 
-  // AUTO-START logic: If we have course context, start the session immediately
   useEffect(() => {
-    if (courseContext && !isActive && !isConnecting && !sessionSummary) {
+    if (courseContext && !isActive && !isConnecting && !sessionSummary && !isGeneratingSummary) {
       startSession();
     }
   }, [courseContext]);
@@ -75,6 +75,26 @@ const LiveChat: React.FC<LiveChatProps> = ({ role, onClose, courseContext }) => 
     } catch (e) {
       console.error("Translation Error", e);
     }
+  };
+
+  const handlePlayMessage = async (msg: ChatMessage) => {
+    setPlayingMessageId(msg.id);
+    await textAiService.speak(msg.text, role.language);
+    setPlayingMessageId(null);
+  };
+
+  const handleToggleKeyPoint = (msg: ChatMessage) => {
+    if (markedMessageIds.has(msg.id)) return;
+    const kp: KeyPoint = {
+      id: `kp-${Date.now()}`,
+      sessionId: startTimeRef.current.toString(),
+      roleName: role.name,
+      content: msg.text,
+      translation: msg.translation,
+      timestamp: new Date().toISOString()
+    };
+    storageService.saveKeyPoint(kp);
+    setMarkedMessageIds(prev => new Set(prev).add(msg.id));
   };
 
   const startSession = async () => {
@@ -129,7 +149,6 @@ const LiveChat: React.FC<LiveChatProps> = ({ role, onClose, courseContext }) => 
           }
         },
         onError: (err: any) => {
-          console.error("Session Error:", err);
           setConnectionError(err?.message || "与服务器的实时连接中断。");
           setIsActive(false);
         },
@@ -138,15 +157,17 @@ const LiveChat: React.FC<LiveChatProps> = ({ role, onClose, courseContext }) => 
       setIsActive(true);
       startTimeRef.current = Date.now();
     } catch (err: any) {
-      console.error("Connection Failed:", err);
       setConnectionError(err?.message || "初始化服务失败。");
     } finally {
       setIsConnecting(false);
     }
   };
 
-  const endSession = () => {
+  const endSession = async () => {
+    setIsActive(false);
     serviceRef.current?.disconnect();
+    setIsGeneratingSummary(true); // 立即进入生成态
+    
     const session: Session = {
       id: startTimeRef.current.toString(),
       roleId: role.id,
@@ -162,7 +183,7 @@ const LiveChat: React.FC<LiveChatProps> = ({ role, onClose, courseContext }) => 
       } : undefined
     };
     storageService.saveSession(session);
-    generateSummary();
+    await generateSummary();
   };
 
   const generateSummary = async () => {
@@ -179,13 +200,13 @@ const LiveChat: React.FC<LiveChatProps> = ({ role, onClose, courseContext }) => 
     try {
       const summary = await textAiService.generate(prompt);
       setSessionSummary(summary || "总结生成失败。");
-      
-      // Auto-complete chapter if summary looks positive
       if (courseContext && summary?.includes("恭喜完成")) {
         storageService.toggleChapterCompletion(courseContext.course.id, courseContext.chapter.id);
       }
     } catch (e) {
       setSessionSummary("生成总结时出错。");
+    } finally {
+      setIsGeneratingSummary(false); // 完成后退出生成态
     }
   };
 
@@ -276,7 +297,7 @@ const LiveChat: React.FC<LiveChatProps> = ({ role, onClose, courseContext }) => 
         )}
 
         <div className="flex-1 flex flex-col p-4 md:p-10 overflow-y-auto scrollbar-hide space-y-8 bg-[#0b0e14]">
-          {!isActive && !isConnecting && !sessionSummary && (
+          {!isActive && !isConnecting && !sessionSummary && !isGeneratingSummary && (
             <div className="flex-1 flex flex-col items-center justify-center text-center space-y-8 max-w-md mx-auto py-12">
               <div className="relative">
                 <div className={`w-32 h-32 rounded-full flex items-center justify-center border-2 ${isIndianFunny ? 'bg-amber-500/10 border-amber-500/20' : isJapaneseFunny ? 'bg-rose-500/10 border-rose-500/20' : isCantoneseFunny ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-indigo-500/10 border-indigo-500/20'}`}>
@@ -310,6 +331,24 @@ const LiveChat: React.FC<LiveChatProps> = ({ role, onClose, courseContext }) => 
             </div>
           )}
 
+          {isGeneratingSummary && (
+            <div className="flex-1 flex flex-col items-center justify-center space-y-8 animate-in fade-in duration-700">
+               <div className="relative">
+                 <div className="absolute inset-0 bg-indigo-500 blur-3xl opacity-20 animate-pulse"></div>
+                 <BrainCircuit className="text-indigo-400 animate-pulse relative z-10" size={80} />
+               </div>
+               <div className="text-center space-y-3">
+                 <h3 className="text-xl font-black text-white tracking-tight">正在进行深度复盘...</h3>
+                 <p className="text-slate-400 text-sm font-medium animate-bounce">导师正在审阅您的表现并撰写报告</p>
+                 <div className="flex gap-1 justify-center mt-6">
+                    <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
+                    <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
+                    <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
+                 </div>
+               </div>
+            </div>
+          )}
+
           {isActive && (
             <div className="flex flex-col space-y-8 pb-32">
               {messages.map((m) => (
@@ -318,7 +357,23 @@ const LiveChat: React.FC<LiveChatProps> = ({ role, onClose, courseContext }) => 
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${m.role === 'user' ? 'bg-indigo-600 border-indigo-500' : 'bg-[#1a1f2e] border-white/10'}`}>
                       {m.role === 'user' ? <User size={18} /> : getRoleIcon(role.id, 18)}
                     </div>
-                    <div className={`flex flex-col space-y-1 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                    <div className={`flex flex-col space-y-1 relative group ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                      {/* Message Bubble Toolbar */}
+                      <div className={`absolute top-0 flex gap-1 opacity-0 group-hover:opacity-100 transition-all z-10 ${m.role === 'user' ? 'right-full mr-2' : 'left-full ml-2'}`}>
+                        <button 
+                          onClick={() => handlePlayMessage(m)}
+                          className={`p-2 rounded-full border border-white/10 bg-black/40 text-white/60 hover:text-white hover:bg-indigo-500/40 transition-all ${playingMessageId === m.id ? 'animate-pulse text-indigo-400' : ''}`}
+                        >
+                          <Play size={14} fill={playingMessageId === m.id ? 'currentColor' : 'none'} />
+                        </button>
+                        <button 
+                          onClick={() => handleToggleKeyPoint(m)}
+                          className={`p-2 rounded-full border border-white/10 bg-black/40 transition-all ${markedMessageIds.has(m.id) ? 'text-amber-400 bg-amber-400/20' : 'text-white/60 hover:text-white'}`}
+                        >
+                          <Star size={14} fill={markedMessageIds.has(m.id) ? 'currentColor' : 'none'} />
+                        </button>
+                      </div>
+
                       <div className={getBubbleStyle(m.role === 'assistant')}>
                         <p className="text-sm md:text-base leading-relaxed p-4">{m.text}</p>
                         {showTranslation && m.translation && (
