@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { storageService } from './services/storageService';
 import { Role, Language, RoleType, KeyPoint } from './types';
-import { Layout, MessageCircle, BarChart2, Bookmark, Settings, UserCircle, Plus, Edit2, Save, X, Trash2, Calendar, Bot } from 'lucide-react';
+import { Layout, MessageCircle, BarChart2, Bookmark, Settings, UserCircle, Plus, Edit2, Save, X, Trash2, Calendar, Bot, Wand2 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import LiveChat from './components/LiveChat';
+import { RoleArchitect } from './components/RoleArchitect';
 import { DEFAULT_ROLES } from './constants';
 
 const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label: string, active: boolean, onClick: () => void }) => (
@@ -30,12 +31,13 @@ const App: React.FC = () => {
   
   // Role Editing State
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+  const [isArchitectOpen, setIsArchitectOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Partial<Role> | null>(null);
 
   useEffect(() => {
     setRoles(storageService.getRoles());
     setKeyPoints(storageService.getKeyPoints());
-  }, [currentView, isChatOpen]);
+  }, [currentView, isChatOpen, isArchitectOpen]);
 
   const handleStartPractice = (role: Role) => {
     setSelectedRole(role);
@@ -59,11 +61,16 @@ const App: React.FC = () => {
     setIsRoleModalOpen(true);
   };
 
-  const handleSaveRole = () => {
-    if (editingRole && editingRole.name && editingRole.systemPrompt) {
-      storageService.saveRole(editingRole as Role);
+  const handleSaveRole = (roleData?: Partial<Role>) => {
+    const finalRole = roleData || editingRole;
+    if (finalRole && finalRole.name && finalRole.systemPrompt) {
+      storageService.saveRole({
+        ...finalRole,
+        id: finalRole.id || Date.now().toString()
+      } as Role);
       setRoles(storageService.getRoles());
       setIsRoleModalOpen(false);
+      setIsArchitectOpen(false);
       setEditingRole(null);
     }
   };
@@ -186,6 +193,7 @@ const App: React.FC = () => {
 
         {currentView === 'vocab' && (
           <div className="p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* ... 同前 ... */}
             <header>
               <h1 className="text-3xl font-bold text-gray-900">重点知识回顾</h1>
               <p className="text-gray-500">你在对话中标记的所有重点内容</p>
@@ -256,6 +264,14 @@ const App: React.FC = () => {
         <LiveChat role={selectedRole} onClose={() => setIsChatOpen(false)} />
       )}
 
+      {/* Role Architect Modal */}
+      {isArchitectOpen && (
+        <RoleArchitect 
+          onClose={() => setIsArchitectOpen(false)} 
+          onComplete={(data) => handleSaveRole(data)}
+        />
+      )}
+
       {/* Role Editor Modal */}
       {isRoleModalOpen && editingRole && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -269,7 +285,24 @@ const App: React.FC = () => {
                 <X size={24} />
               </button>
             </div>
+            
+            {!editingRole.name && (
+              <div className="p-4 bg-violet-50 border-b border-violet-100 flex items-center justify-between px-8">
+                <div className="flex items-center gap-3">
+                  <Wand2 className="text-violet-600" size={20} />
+                  <span className="text-sm font-semibold text-violet-800">试试“AI语音引导创建”？</span>
+                </div>
+                <button 
+                  onClick={() => { setIsRoleModalOpen(false); setIsArchitectOpen(true); }}
+                  className="px-4 py-1.5 bg-violet-600 text-white text-xs font-bold rounded-full hover:bg-violet-700 transition-all"
+                >
+                  开启语音向导
+                </button>
+              </div>
+            )}
+
             <div className="p-8 space-y-6 overflow-y-auto max-h-[70vh]">
+              {/* ... 原表单内容 ... */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-gray-700">显示名称</label>
@@ -334,7 +367,7 @@ const App: React.FC = () => {
                 取消
               </button>
               <button 
-                onClick={handleSaveRole}
+                onClick={() => handleSaveRole()}
                 className="px-8 py-2 bg-violet-600 text-white rounded-xl font-bold shadow-lg shadow-violet-200 hover:bg-violet-700 transition-colors flex items-center gap-2"
               >
                 <Save size={18} />
