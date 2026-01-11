@@ -1,0 +1,7 @@
+{
+  "name": "LinguistAI - Voice-First Language Learning",
+  "description": "A sophisticated AI-powered language tutor with real-time voice chat, grammar correction, and progress tracking using Gemini Live API.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
